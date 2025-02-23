@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: django_app
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3  # Монтирование БД
+      - ./staticfiles:/app/staticfiles  # Статические файлы
+      - ./media:/app/media  # Медиа-файлы
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_SECRET_KEY=your-secret-key-here  # Замените на свой!
+    command: >
+      sh -c "python manage.py migrate && 
+             gunicorn --bind 0.0.0.0:8000 parking.wsgi"
