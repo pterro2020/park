@@ -44,6 +44,11 @@ jobs:
       - name: Check server availability
         run: curl -I http://89.169.164.174 || exit 1
 
+      - name: Download SAST Artifacts
+        uses: actions/download-artifact@v4
+        with:
+         name: codeql-results
+
       - name: Checkout repo
         uses: actions/checkout@v4
 
