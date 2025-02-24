@@ -18,7 +18,7 @@ jobs:
       - name: Set up CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: javascript  # Укажите язык проекта (если не JS, поменяйте!)
+          languages: Python  # Укажите язык проекта (если не JS, поменяйте!)
           queries: security-extended  # Расширенные правила проверки
 
       - name: Run CodeQL Analysis
