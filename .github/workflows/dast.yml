@@ -22,13 +22,13 @@ jobs:
           format: 'html sarif'         # Форматы отчетов
 
       - name: Upload HTML Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-html-report
           path: zap-report.html
 
       - name: Upload SARIF Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-sarif-report
           path: zap-report.sarif
