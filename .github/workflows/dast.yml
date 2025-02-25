@@ -6,7 +6,7 @@ on:
   workflow_dispatch:      # Ручной запуск через интерфейс GitHub
 
 jobs:
-  zap_scan:
+  zap-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
