@@ -36,3 +36,11 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: zap-report.sarif
+
+      - name: Upload to DefectDojo
+        run: |
+          curl -X POST -H "Authorization: Token $DEFECT_DOJO_TOKEN" \
+          -F "file=@zap-report.xml" \
+          "https://ВАШ_ДОМЕН.defectdojo/api/v2/import-scan/"
+        env:
+          DEFECT_DOJO_TOKEN: ${{ secrets.DEFECT_DOJO_TOKEN }}
