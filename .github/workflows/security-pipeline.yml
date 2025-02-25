@@ -1,10 +1,3 @@
-name: Security Pipeline for Park Project
-on:
-  push:
-    branches: [ main ]
-  schedule:
-    - cron: '0 3 * * 1'  # Еженедельное сканирование
-
 jobs:
   sast:
     name: SAST (CodeQL)
@@ -19,16 +12,24 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: javascript  # Укажите ваш язык (python/java/etc)
+          languages: javascript  # Убедитесь, что язык указан верно
+          # Если проект на Python/PHP/Java, замените "javascript"
 
       - name: Analyze with CodeQL
         uses: github/codeql-action/analyze@v2
-        continue-on-error: true  # Workflow продолжит работу даже при ошибках SAST
+        continue-on-error: true
+
+      - name: Verify SARIF file exists
+        run: |
+          if [ ! -f results.sarif ]; then
+            echo "Ошибка: results.sarif не найден!"
+            exit 1
+          fi
 
       - name: Upload SARIF Report
         uses: actions/upload-artifact@v4
         with:
-          name: codeql-results  # Имя артефакта должно совпадать везде!
+          name: codeql-results
           path: results.sarif
 
   dast:
