@@ -41,3 +41,4 @@ jobs:
         if: steps.check_sarif.outputs.sarif_file_exists == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
+          sarif_file: semgrep-report.sarif
