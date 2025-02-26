@@ -21,7 +21,7 @@ jobs:
       - name: Run Semgrep SAST
         uses: returntocorp/semgrep-action@v1  # Официальный action для Semgrep
         with:
-          config: p/python  # Используем стандартный конфиг для Python
+          config: p/python --verbose # Используем стандартный конфиг для Python
           output_format: sarif  # Формат отчета (SARIF для интеграции с GitHub Code Scanning)
           output_file: semgrep-report.sarif  # Имя файла отчета
 
