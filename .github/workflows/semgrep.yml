@@ -16,22 +16,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Используем актуальную версию actions/checkout
+        uses: actions/checkout@v4
+
+      - name: Upgrade Semgrep
+        run: pip install --upgrade semgrep
 
       - name: Run Semgrep SAST
-        uses: returntocorp/semgrep-action@v1  # Официальный action для Semgrep
+        uses: returntocorp/semgrep-action@v1
         with:
-          config: p/python --verbose # Используем стандартный конфиг для Python
-          output_format: sarif  # Формат отчета (SARIF для интеграции с GitHub Code Scanning)
-          output_file: semgrep-report.sarif  # Имя файла отчета
+          config: p/python
+          output_format: sarif
+          output_file: semgrep-report.sarif
 
-      - name: Upload SARIF Report
-        uses: actions/upload-artifact@v4  # Загружаем отчет как артефакт
-        with:
-          name: semgrep-sarif-report
-          path: semgrep-report.sarif
+      - name: Check if SARIF file exists
+        id: check_sarif
+        run: |
+          if [ -f "semgrep-report.sarif" ]; then
+            echo "sarif_file_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "sarif_file_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Import SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2  # Импортируем отчет в GitHub Code Scanning
+        if: steps.check_sarif.outputs.sarif_file_exists == 'true'
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep-report.sarif
