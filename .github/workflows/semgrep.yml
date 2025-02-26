@@ -22,7 +22,7 @@ jobs:
         run: pip install --upgrade semgrep
 
       - name: Run Semgrep SAST
-        uses: returntocorp/semgrep-action@v3
+        uses: returntocorp/semgrep-action@v1
         with:
           config: p/python
           output_format: sarif
