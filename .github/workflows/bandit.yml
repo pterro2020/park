@@ -19,7 +19,9 @@ on:
     branches: [ "main" ]
   schedule:
     - cron: '26 14 * * 1'
-
+    - name: Run Bandit SAST
+        run:pip install bandit bandit-sarif-formatter
+        bandit -r src/ -f sarif -o bandit-report.sarif
 jobs:
   bandit:
     permissions:
