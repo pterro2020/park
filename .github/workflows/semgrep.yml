@@ -1,26 +1,37 @@
+name: Semgrep SAST Scan
+
 on:
-  workflow_dispatch: {}
-  pull_request: {}
   push:
     branches:
-    - main
-    - master
-    paths:
-    - .github/workflows/semgrep.yml
+      - main  # Запускать при пуше в ветку main
+  pull_request:
+    branches:
+      - main  # Запускать при создании пул-реквеста в ветку main
   schedule:
-  # random HH:MM to avoid a load spike on GitHub Actions at 00:00
-  - cron: 14 5 * * *
-name: Semgrep
+    - cron: '0 0 * * *'  # Ежедневный запуск в полночь
+  workflow_dispatch:  # Ручной запуск через интерфейс GitHub
+
 jobs:
-  semgrep:
-    name: semgrep/ci
+  semgrep-scan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-    container:
-      image: semgrep/semgrep
     steps:
-    - uses: actions/checkout@v4
-    - run: semgrep ci
+      - name: Checkout code
+        uses: actions/checkout@v4  # Используем актуальную версию actions/checkout
+
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1  # Официальный action для Semgrep
+        with:
+          config: p/python  # Используем стандартный конфиг для Python
+          output_format: sarif  # Формат отчета (SARIF для интеграции с GitHub Code Scanning)
+          output_file: semgrep-report.sarif  # Имя файла отчета
+
+      - name: Upload SARIF Report
+        uses: actions/upload-artifact@v4  # Загружаем отчет как артефакт
+        with:
+          name: semgrep-sarif-report
+          path: semgrep-report.sarif
+
+      - name: Import SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2  # Импортируем отчет в GitHub Code Scanning
+        with:
+          sarif_file: semgrep-report.sarif
