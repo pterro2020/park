@@ -15,12 +15,10 @@ jobs:
   semgrep-scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Upgrade Semgrep
         run: pip install --upgrade semgrep
-
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Run Semgrep SAST
         uses: returntocorp/semgrep-action@v1
         with:
