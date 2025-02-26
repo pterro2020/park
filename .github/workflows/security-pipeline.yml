@@ -61,20 +61,20 @@ jobs:
         with:
           target: 'http://89.169.164.174'
           format: html
-          report_file: zap_dast_report.html
+          report_file: zap-dast-report.html
           cmd_options: '-I -T 60'
 
       - name: Generate Markdown Report
         run: |
           echo "### Результаты сканирования OWASP ZAP" > zap_summary.md
-          echo "**Высокий риск:** $(grep -oP '(?<=High</td><td>)[0-9]+' zap_dast_report.html)" >> zap_summary.md
-          echo "**Средний риск:** $(grep -oP '(?<=Medium</td><td>)[0-9]+' zap_dast_report.html)" >> zap_summary.md
-          echo "**Низкий риск:** $(grep -oP '(?<=Low</td><td>)[0-9]+' zap_dast_report.html)" >> zap_summary.md
+          echo "**Высокий риск:** $(grep -oP '(?<=High</td><td>)[0-9]+' zap-dast-report.html)" >> zap-summary.md
+          echo "**Средний риск:** $(grep -oP '(?<=Medium</td><td>)[0-9]+' zap-dast-report.html)" >> zap-summary.md
+          echo "**Низкий риск:** $(grep -oP '(?<=Low</td><td>)[0-9]+' zap-dast-report.html)" >> zap-summary.md
 
       - name: Upload DAST Reports
         uses: actions/upload-artifact@v4
         with:
           name: dast-reports
           path: |
-            zap_dast_report.html
-            zap_summary.md
+            zap-dast-report.html
+            zap-summary.md
