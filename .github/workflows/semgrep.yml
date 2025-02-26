@@ -24,7 +24,7 @@ jobs:
       - name: Run Semgrep SAST
         uses: returntocorp/semgrep-action@v1
         with:
-          config: p/python
+          config: p/python --verbose
           output_format: sarif
           output_file: semgrep-report.sarif
 
