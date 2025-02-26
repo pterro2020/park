@@ -12,5 +12,5 @@ services:
       - "80:80"  # Nginx слушает порт 80
     environment:
       - PYTHONUNBUFFERED=1
-      - DJANGO_SECRET_KEY=your-secret-key-here
+      - DJANGO_SECRET_KEY=django-insecure-wf=md00ywe6f2a_l(&re&c9lvdbuoys(63gsp8m2=-x#e^(i9u
       - DJANGO_DEBUG=False            
