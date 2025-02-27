@@ -1,26 +1,23 @@
+---
 name: DAST Scan with OWASP ZAP
-
 on:
   schedule:
-    - cron: '0 0 * * *'  # Ежедневный запуск в полночь
-  workflow_dispatch:      # Ручной запуск через интерфейс GitHub
-
+    - cron: 0 0 * * *
+  workflow_dispatch: null
 jobs:
   zap-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Run OWASP ZAP Docker Scan
         uses: zaproxy/action-full-scan@v0.7.0
         with:
-          target: 'http://89.169.164.174:80'
-          openapi: 'openapi.yaml'
-          rules_file_name: 'zap.conf'  # Опционально: кастомные правила
-          cmd_options: '-a'            # Автоматическое подтверждение предупреждений
-          format: 'json'               # Генерация отчета в формате JSON
-
+          target: http://89.169.164.174:80
+          openapi: openapi.yaml
+          rules_file_name: zap.conf
+          cmd_options: -a
+          format: json
       - name: Convert JSON to HTML
         run: |
           # Установка необходимых инструментов
@@ -65,19 +62,16 @@ jobs:
           with open('zap-report.html', 'w') as f:
               f.write(html_report)
           "
-
       - name: Upload JSON Report
         uses: actions/upload-artifact@v4
         with:
           name: zap-json-report
           path: zap-report.json
-
       - name: Upload HTML Report
         uses: actions/upload-artifact@v4
         with:
           name: zap-html-report
           path: zap-report.html
-
       - name: Import SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
