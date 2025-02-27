@@ -1,4 +1,5 @@
 name: Bandit SAST Scan
+
 on:
   push:
     branches:
@@ -7,31 +8,33 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *'  # Ежедневный запуск в полночь
+  workflow_dispatch:  # Ручной запуск через интерфейс GitHub
+
 jobs:
   bandit-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.12"
+          python-version: '3.12'
+
       - name: Install Bandit
         run: pip install bandit
+
       - name: Run Bandit SAST
         run: |
           bandit -r . -f json -o bandit-report.json --exit-zero
-      - name: Upload JSON Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: bandit-json-report
-          path: bandit-report.json
-      - name: Convert JSON to HTML (Optional)
-        run: >
-          pip install jinja2
+
+      - name: Install Jinja2
+        run: pip install jinja2
+
+      - name: Convert JSON to HTML
+        run: |
           python -c "
           import json
           from jinja2 import Template
@@ -40,7 +43,6 @@ jobs:
               data = json.load(f)
 
           html_template = '''
-
           <!DOCTYPE html>
           <html>
           <head>
@@ -60,13 +62,21 @@ jobs:
           </body>
           </html>
           '''
+
           template = Template(html_template)
           html_report = template.render(data=data)
 
           with open('bandit-report.html', 'w') as f:
               f.write(html_report)
           "
-      - name: Upload HTML Report (Optional)
+
+      - name: Upload JSON Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-json-report
+          path: bandit-report.json
+
+      - name: Upload HTML Report
         uses: actions/upload-artifact@v4
         with:
           name: bandit-html-report
