@@ -1,4 +1,3 @@
----
 name: Bandit SAST Scan
 on:
   push:
@@ -8,8 +7,8 @@ on:
     branches:
       - main
   schedule:
-    - cron: 0 0 * * *
-  workflow_dispatch: null
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 jobs:
   bandit-scan:
     runs-on: ubuntu-latest
@@ -33,13 +32,9 @@ jobs:
       - name: Convert JSON to HTML (Optional)
         run: >
           pip install jinja2
-
           python -c "
-
           import json
-
           from jinja2 import Template
-
 
           with open('bandit-report.json', 'r') as f:
               data = json.load(f)
@@ -47,13 +42,10 @@ jobs:
           html_template = '''
 
           <!DOCTYPE html>
-
           <html>
-
           <head>
               <title>Bandit Scan Report</title>
           </head>
-
           <body>
               <h1>Bandit Scan Report</h1>
               <ul>
@@ -66,16 +58,10 @@ jobs:
               {% endfor %}
               </ul>
           </body>
-
           </html>
-
           '''
-
-
           template = Template(html_template)
-
           html_report = template.render(data=data)
-
 
           with open('bandit-report.html', 'w') as f:
               f.write(html_report)
