@@ -16,10 +16,61 @@ jobs:
         uses: zaproxy/action-full-scan@v0.7.0
         with:
           target: 'http://89.169.164.174:80'
-          openapi: 'openapi.yaml' 
+          openapi: 'openapi.yaml'
           rules_file_name: 'zap.conf'  # Опционально: кастомные правила
           cmd_options: '-a'            # Автоматическое подтверждение предупреждений
-          format: 'html sarif'         # Форматы отчетов
+          format: 'json'               # Генерация отчета в формате JSON
+
+      - name: Convert JSON to HTML
+        run: |
+          # Установка необходимых инструментов
+          pip install jinja2
+
+          # Создание HTML-отчета из JSON
+          python -c "
+          import json
+          from jinja2 import Template
+
+          # Загрузка JSON-отчета
+          with open('zap-report.json', 'r') as f:
+              data = json.load(f)
+
+          # Шаблон HTML
+          html_template = '''
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>ZAP Scan Report</title>
+          </head>
+          <body>
+              <h1>ZAP Scan Report</h1>
+              <ul>
+              {% for issue in data %}
+                  <li>
+                      <strong>{{ issue.name }}</strong>: {{ issue.description }}
+                      <br>Severity: {{ issue.risk }}
+                      <br>URL: {{ issue.url }}
+                  </li>
+              {% endfor %}
+              </ul>
+          </body>
+          </html>
+          '''
+
+          # Генерация HTML
+          template = Template(html_template)
+          html_report = template.render(data=data)
+
+          # Сохранение HTML-отчета
+          with open('zap-report.html', 'w') as f:
+              f.write(html_report)
+          "
+
+      - name: Upload JSON Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-json-report
+          path: zap-report.json
 
       - name: Upload HTML Report
         uses: actions/upload-artifact@v4
@@ -27,21 +78,7 @@ jobs:
           name: zap-html-report
           path: zap-report.html
 
-      - name: Upload SARIF Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-sarif-report
-          path: zap-report.sarif
-
       - name: Import SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: zap-report.sarif
-
-   #   - name: Upload to DefectDojo
-   #     run: |
-   #       curl -X POST -H "Authorization: Token $DEFECT_DOJO_TOKEN" \
-   #       -F "file=@zap-report.xml" \
-   #       "https://ВАШ_ДОМЕН.defectdojo/api/v2/import-scan/"
-   #     env:
-   #       DEFECT_DOJO_TOKEN: ${{ secrets.DEFECT_DOJO_TOKEN }}
