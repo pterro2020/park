@@ -16,7 +16,7 @@ jobs:
 #          openapi: openapi.yaml
 #          rules_file_name: zap.conf
           cmd_options: -a
-          format: json
+#          format: json
       - name: Convert JSON to HTML
         run: |
           # Установка необходимых инструментов
