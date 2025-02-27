@@ -1,4 +1,4 @@
-name: DAST Scan with OWASP ZAP
+name: DAST Scan with OWASP ZAP 
 on:
   schedule:
     - cron: '0 0 * * *'
