@@ -3,7 +3,7 @@ name: Cleanup Old Workflow Runs
 on:
   schedule:
     - cron: '0 0 * * *'  # Запускать каждый день в полночь
-
+  workflow_dispatch:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
