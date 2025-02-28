@@ -25,7 +25,7 @@ jobs:
 
       - name: Delete old workflow runs
         run: |
-          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_OWNER="${{ github.pterro2020 }}"
           REPO_NAME="${{ github.event.repository.name }}"
           DAYS_OLD=3  # Удалить workflow runs старше 3 дней
 
