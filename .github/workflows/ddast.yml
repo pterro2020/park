@@ -19,9 +19,6 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Check current user
-        run: whoami
-
       - name: Checkout code
         uses: actions/checkout@v4
 
