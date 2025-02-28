@@ -1,35 +1,31 @@
+---
 stages:
   - sast
   - dast
-
 variables:
-  # Настройки для OWASP ZAP
-  ZAP_TARGET: "http://89.169.164.174:80"  # Укажите URL вашего приложения
-  ZAP_OPTIONS: "-a"  # Автоматическое подтверждение предупреждений
-
-# SAST с использованием Semgrep
+  ZAP_TARGET: http://89.169.164.174:80
+  ZAP_OPTIONS: -a
 sast:
   stage: sast
-  image: python:3.12  # Используем образ с Python
+  image: python:3.12
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # Запускать при создании MR
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   script:
-    - pip install semgrep  # Устанавливаем Semgrep
-    - semgrep --config=p/ci --json > semgrep-sast-report.json  # Запуск Semgrep и сохранение отчета
+    - pip install semgrep
+    - semgrep --config=p/ci --json > semgrep-sast-report.json
   artifacts:
     paths:
-      - semgrep-sast-report.json  # Сохраняем отчет как артефакт
-    expire_in: 1 week  # Время хранения артефактов
-
-# DAST с использованием OWASP ZAP
+      - semgrep-sast-report.json
+    expire_in: 1 week
 dast:
   stage: dast
-  image: owasp/zap2docker-live  # Используем другой образ
+  image: owasp/zap2docker-live
   script:
-    - zap-baseline.py -t http://89.169.164.174:80 -a -r zap-report.html -w zap-report.md  # Запуск ZAP
+    - zap-baseline.py -t http://89.169.164.174:80 -a -r zap-report.html -w
+      zap-report.md
   artifacts:
     paths:
-      - zap-report.html  # HTML-отчет
-      - zap-report.md    # Markdown-отчет
-    expire_in: 1 week  # Время хранения артефактов
+      - zap-report.html
+      - zap-report.md
+    expire_in: 1 week
