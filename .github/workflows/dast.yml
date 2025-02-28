@@ -12,6 +12,7 @@ jobs:
       - name: Run OWASP ZAP Docker Scan
         uses: zaproxy/action-full-scan@v0.8.0
         with:
+          args: '-quickurl http://localhost:8080 -quickout zap_report.html'
           target: http://89.169.164.174:80
 #          openapi: openapi.yaml
 #          rules_file_name: zap.conf
