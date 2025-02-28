@@ -1,79 +1,43 @@
-name: DAST Scan with OWASP ZAP 
+name: DAST Scan with OWASP ZAP
+
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch: null
+    - cron: '0 0 * * *'  # Ежедневный запуск в полночь
+  workflow_dispatch:      # Ручной запуск через интерфейс GitHub
+
 jobs:
-  zap_scan:
+  zap-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Run OWASP ZAP Docker Scan
         uses: zaproxy/action-full-scan@v0.8.0
         with:
-#          token: ${{ secrets.GITHUB_TOKEN }}  # Убедитесь, что токен настроен
-          target: 'http://89.169.164.174:80'  # Укажите целевой URL для анализа
-#          cmd_options: '-quickout zap_report.html'  # Используйте cmd_options вместо args
-#          openapi: openapi.yaml
-#          rules_file_name: zap.conf
-#          cmd_options: -a
-#          format: json
-      - name: Convert JSON to HTML
-        run: |
-          # Установка необходимых инструментов
-          pip install jinja2
+          target: 'http://89.169.164.174:80'
+          cmd_options: '-a'            # Автоматическое подтверждение предупреждений
+          format: 'html sarif json'         # Форматы отчетов
 
-          # Создание HTML-отчета из JSON
-          python -c "
-          import json
-          from jinja2 import Template
-
-          # Загрузка JSON-отчета
-          with open('zap-report.json', 'r') as f:
-              data = json.load(f)
-
-          # Шаблон HTML
-          html_template = '''
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>ZAP Scan Report</title>
-          </head>
-          <body>
-              <h1>ZAP Scan Report</h1>
-              <ul>
-              {% for issue in data %}
-                  <li>
-                      <strong>{{ issue.name }}</strong>: {{ issue.description }}
-                      <br>Severity: {{ issue.risk }}
-                      <br>URL: {{ issue.url }}
-                  </li>
-              {% endfor %}
-              </ul>
-          </body>
-          </html>
-          '''
-
-          # Генерация HTML
-          template = Template(html_template)
-          html_report = template.render(data=data)
-
-          # Сохранение HTML-отчета
-          with open('zap-report.html', 'w') as f:
-              f.write(html_report)
-          "
-      - name: Upload JSON Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-json-report
-          path: zap-report.json
       - name: Upload HTML Report
         uses: actions/upload-artifact@v4
         with:
           name: zap-html-report
           path: zap-report.html
+
+      - name: Upload JSON Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-json-report
+          path: zap-report.json
+
+      - name: Upload SARIF Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-sarif-report
+          path: zap-report.sarif
+
       - name: Import SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: zap-report.sarif
