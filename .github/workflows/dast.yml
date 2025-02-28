@@ -19,7 +19,7 @@ jobs:
          # cmd_options: 
           #          format: 'html json sarif'        
           # Форматы отчетов
-          cmd_options: '-a -J zap-report.json -s zap-report.sarif -r zap-report.html'
+      #    cmd_options: '-a -J zap-report.json -s zap-report.sarif -r zap-report.html'
 
       - name: Upload HTML Report
         uses: actions/upload-artifact@v4
