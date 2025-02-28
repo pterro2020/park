@@ -8,7 +8,7 @@ jobs:
   dast:
     runs-on: self-hosted
     container:
-      image: owasp/zap2docker-latest
+      image: owasp/zap2docker-live
       options: --user root --network host
     steps:
       - name: Check current user
