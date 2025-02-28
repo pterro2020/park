@@ -13,7 +13,7 @@ jobs:
     runs-on: self-hosted  # Используем self-hosted runner
     container:
       image: owasp/zap2docker-live  # Используем образ OWASP ZAP
-      options: --user root  # Опционально, для прав root в контейнере
+      options: --user root --network host  # Добавлены параметры --user и --network
 
     steps:
       - name: Checkout code
