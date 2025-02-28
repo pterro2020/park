@@ -31,7 +31,7 @@ jobs:
       - name: Run DAST Scan
         run: |
           echo "Starting DAST scan..."
-          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir ./zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
+          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
           echo "DAST scan completed."
           echo "Checking if reports were created..."
           ls -R zap-reports
@@ -40,6 +40,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zap-reports
-          path: ./zap-reports
+          path: /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
             zap-reports/zap-report.html
             zap-reports/zap-report.md
