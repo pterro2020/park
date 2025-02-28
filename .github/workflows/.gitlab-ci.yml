@@ -25,12 +25,9 @@ sast:
 # DAST с использованием OWASP ZAP
 dast:
   stage: dast
-  image: owasp/zap2docker-stable  # Используем официальный образ OWASP ZAP
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # Запускать при создании MR
+  image: owasp/zap2docker-live  # Используем другой образ
   script:
-    - zap-baseline.py -t $ZAP_TARGET $ZAP_OPTIONS -r zap-report.html -w zap-report.md  # Запуск ZAP и сохранение отчетов
+    - zap-baseline.py -t http://89.169.164.174:80 -a -r zap-report.html -w zap-report.md  # Запуск ZAP
   artifacts:
     paths:
       - zap-report.html  # HTML-отчет
