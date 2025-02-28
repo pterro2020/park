@@ -14,7 +14,7 @@ jobs:
         with:
 #          token: ${{ secrets.GITHUB_TOKEN }}  # Убедитесь, что токен настроен
           target: 'http://89.169.164.174:80'  # Укажите целевой URL для анализа
-          cmd_options: '-quickout zap_report.html'  # Используйте cmd_options вместо args
+#          cmd_options: '-quickout zap_report.html'  # Используйте cmd_options вместо args
 #          openapi: openapi.yaml
 #          rules_file_name: zap.conf
 #          cmd_options: -a
