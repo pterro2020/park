@@ -11,6 +11,9 @@ variables:
 sast:
   stage: sast
   image: python:3.12  # Используем образ с Python
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # Запускать при создании MR
   script:
     - pip install semgrep  # Устанавливаем Semgrep
     - semgrep --config=p/ci --json > semgrep-sast-report.json  # Запуск Semgrep и сохранение отчета
@@ -23,6 +26,9 @@ sast:
 dast:
   stage: dast
   image: owasp/zap2docker-stable  # Используем официальный образ OWASP ZAP
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # Запускать при создании MR
   script:
     - zap-baseline.py -t $ZAP_TARGET $ZAP_OPTIONS -r zap-report.html -w zap-report.md  # Запуск ZAP и сохранение отчетов
   artifacts:
