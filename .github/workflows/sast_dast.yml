@@ -16,7 +16,7 @@ sast:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # Запускать при создании MR
   script:
     - pip install semgrep  # Устанавливаем Semgrep
-    - semgrep --config=p/ci --json > semgrep-sast-report.json  # Запуск Semgrep и сохранение отчета
+    - semgrep --config=p/ci --json -o semgrep-sast-report.json  # Запуск Semgrep и сохранение отчета
   artifacts:
     paths:
       - semgrep-sast-report.json  # Сохраняем отчет как артефакт
