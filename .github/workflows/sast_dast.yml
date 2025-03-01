@@ -1,6 +1,5 @@
 stages:
-  - sast
-  - dast
+  - security  # Общий этап для SAST и DAST
 
 variables:
   # Настройки для OWASP ZAP
@@ -9,7 +8,7 @@ variables:
 
 # SAST с использованием Semgrep
 sast:
-  stage: sast
+  stage: security  # Этап security
   image: python:3.9  # Используем стабильную версию Python
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
@@ -24,7 +23,7 @@ sast:
 
 # DAST с использованием OWASP ZAP
 dast:
-  stage: dast
+  stage: security  # Этап security
   image: owasp/zap2docker-stable  # Используем официальный образ OWASP ZAP
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
