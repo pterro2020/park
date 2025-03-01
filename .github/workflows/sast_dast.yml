@@ -1,7 +1,13 @@
 stages:
   - sast
   - dast
-
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 variables:
   # Настройки для OWASP ZAP
   ZAP_TARGET: "http://89.169.164.174:80"  # Укажите URL вашего приложения
