@@ -1,13 +1,7 @@
 stages:
   - sast
   - dast
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+
 variables:
   # Настройки для OWASP ZAP
   ZAP_TARGET: "http://89.169.164.174:80"  # Укажите URL вашего приложения
@@ -16,7 +10,7 @@ variables:
 # SAST с использованием Semgrep
 sast:
   stage: sast
-  image: python:3.12  # Используем образ с Python
+  image: python:3.9  # Используем стабильную версию Python
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'  # Запускать при пуше в репозиторий
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # Запускать при создании MR
