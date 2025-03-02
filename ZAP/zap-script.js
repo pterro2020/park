@@ -1,10 +1,19 @@
 // Пример скрипта для ZAP
-var targetUrl = "http://89.169.164.174"; // Замените на URL вашего приложения
+var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
 var scanPolicyName = "Default Policy"; // Используемая политика сканирования
 
 // Инициализация ZAP
 print("Initializing ZAP...");
-var client = new org.zaproxy.clientapi.core.ClientApi("http://89.169.164.174", 80);
+var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 8080);
+
+// Проверка доступности ZAP API
+try {
+    var version = client.core.version();
+    print("Connected to ZAP API version: " + version);
+} catch (e) {
+    print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
+    exit(1);
+}
 
 // Запуск сканирования
 print("Starting active scan for: " + targetUrl);
