@@ -36,7 +36,7 @@ jobs:
 
       - name: Check server availability
         run: |
-          if ! curl -I http://89.169.164.174:80; then
+          if ! curl -I http://89.169.164.174; then
             echo "Server is not available!"
             exit 1
           fi
