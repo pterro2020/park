@@ -32,8 +32,8 @@ jobs:
 
       - name: Create reports directory
         run: |
-          mkdir -p /home/actions-runner/_work/park/park/zap-reports
-          chmod 777 /home/actions-runner/_work/park/park/zap-reports
+          sudo mkdir -p /home/actions-runner/_work/park/park/zap-reports
+          sudo chmod 777 /home/actions-runner/_work/park/park/zap-reports
 
           # Проверка, что директория создана
           if [ ! -d "/home/actions-runner/_work/park/park/zap-reports" ]; then
