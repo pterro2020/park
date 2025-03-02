@@ -32,8 +32,8 @@ jobs:
 
       - name: Create reports directory
         run: |
-          sudo mkdir -p /home/actions-runner/_work/park/park/zap-reports
-          sudo chmod 777 /home/actions-runner/_work/park/park/zap-reports
+          mkdir -p /home/actions-runner/_work/park/park/zap-reports
+          chmod 777 /home/actions-runner/_work/park/park/zap-reports
 
           # Проверка, что директория создана
           if [ ! -d "/home/actions-runner/_work/park/park/zap-reports" ]; then
@@ -69,10 +69,10 @@ jobs:
 
       - name: Run DAST scan
         run: |
-          # Запуск ZAP с правильными параметрами
           # Укажите URL вашего проекта
           PROJECT_URL="http://89.169.164.174/myparking/"
-          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -url $PROJECT_URL -dir /home/actions-runner/_work/park/park/zap-reports || { echo "DAST scan failed"; exit 1; }
+          # Запуск ZAP с правильными параметрами
+          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -quickurl $PROJECT_URL -dir /home/actions-runner/_work/park/park/zap-reports || { echo "DAST scan failed"; exit 1; }
 
           # Проверка, что отчеты созданы
           if [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.md" ]; then
@@ -90,7 +90,8 @@ jobs:
         id: artifact
         run: |
           # Получаем URL артефакта
-          ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          ARTIFACT_URL=$(curl -s -H "
+          Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/pterro2020/park/actions/artifacts \
             | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
