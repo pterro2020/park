@@ -51,7 +51,7 @@ jobs:
           echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV  # Устанавливаем переменную окружения
 
       - name: Debug artifact URL
-        run: echo "Artifact URL: '${{ env.artifact_url }}'"  # Используем правильное имя переменной
+        run: echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV  # Используем правильное имя переменной
 
       - name: Create GitHub Issue with ZAP report links
         env:
