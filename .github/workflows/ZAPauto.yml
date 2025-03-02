@@ -26,7 +26,7 @@ env:
   vars: {}
 
 jobs:
-  - parameters:
+  - parameters: {}
       scanOnlyInScope: true
       enableTags: false
       disableAllRules: false
