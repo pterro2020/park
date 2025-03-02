@@ -1,0 +1,81 @@
+env:
+  contexts:
+    - name: "Park Project Context"
+      urls:
+        - "http://89.169.164.174:8080"  # Укажите URL вашего приложения
+      includePaths:
+        - "http://89.169.164.174:8080.*"  # Включаем все пути, начинающиеся с этого URL
+      excludePaths: []  # Исключенные пути (если есть)
+      authentication:
+        parameters: {}  # Настройки аутентификации (если требуется)
+        verification:
+          method: "response"  # Метод проверки аутентификации
+          pollFrequency: 60
+          pollUnits: "requests"
+          pollUrl: ""
+          pollPostData: ""
+      sessionManagement:
+        method: "cookie"  # Управление сессией через куки
+        parameters: {}
+      technology:
+        exclude: []  # Исключенные технологии (если есть)
+  parameters:
+    failOnError: true  # Завершить выполнение при ошибке
+    failOnWarning: false  # Не завершать выполнение при предупреждениях
+    progressToStdout: true  # Выводить прогресс в стандартный вывод
+  vars: {}  # Дополнительные переменные (если есть)
+
+jobs:
+  - parameters:
+      scanOnlyInScope: true  # Сканировать только URL в пределах контекста
+      enableTags: false  # Не использовать теги
+      disableAllRules: false  # Не отключать правила сканирования
+    rules: []
+    name: "passiveScan-config"
+    type: "passiveScan-config"
+
+  - parameters: {}
+    tests:
+      - onFail: "INFO"
+        statistic: "automation.spider.urls.added"
+        site: ""
+        operator: ">="
+        value: 50  # Минимум 50 URL должно быть найдено
+        name: "At least 50 URLs found"
+        type: "stats"
+    name: "spider"
+    type: "spider"
+
+  - parameters:
+      maxDuration: 60  # Максимальная длительность сканирования (в минутах)
+      maxCrawlDepth: 10  # Максимальная глубина сканирования
+      numberOfBrowsers: 16  # Количество браузеров для Ajax Spider
+      inScopeOnly: true  # Сканировать только URL в пределах контекста
+    tests:
+      - onFail: "INFO"
+        statistic: "spiderAjax.urls.added"
+        site: ""
+        operator: ">="
+        value: 50  # Минимум 50 URL должно быть найдено
+        name: "At least 50 URLs found"
+        type: "stats"
+    name: "spiderAjax"
+    type: "spiderAjax"
+
+  - parameters: {}
+    name: "passiveScan-wait"
+    type: "passiveScan-wait"
+
+  - parameters: {}
+    policyDefinition:
+      rules: []  # Правила для активного сканирования (если есть)
+    name: "activeScan"
+    type: "activeScan"
+
+  - parameters:
+      template: "risk-confidence-html"  # Шаблон отчета
+      reportDir: "/zap/wrk"  # Директория для сохранения отчета
+      reportTitle: "ZAP Scanning Report for Park Project"
+      reportDescription: "Scan results for the Park project"
+    name: "report"
+    type: "report"
