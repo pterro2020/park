@@ -14,17 +14,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'  # Указываем дистрибутив Java (например, Temurin, Zulu и т.д.)
           java-version: '11'       # Указываем версию Java
 
       - name: Download and run ZAP
         run: |
-          ZAP_VERSION="2.14.0"
+          ZAP_VERSION="2.16.0"
           wget https://github.com/zaproxy/zaproxy/releases/download/v$ZAP_VERSION/ZAP_$ZAP_VERSION\_Linux.tar.gz
           tar -xzf ZAP_$ZAP_VERSION\_Linux.tar.gz
           ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun zap-config.yaml
