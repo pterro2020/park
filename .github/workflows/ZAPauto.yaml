@@ -26,7 +26,7 @@ jobs:
         run: |
           ZAP_VERSION="2.16.0"  # Укажите актуальную версию
           wget https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
-          tar -xzf ZAP_${ZAP_VERSION//./_}_Linux.tar.gz
+          tar -xzf ZAP_2.16.0_Linux.tar.gz
           ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun ./zap-config.yaml  # Укажите правильный путь к файлу
 
       - name: Upload ZAP report
