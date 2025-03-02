@@ -1,3 +1,9 @@
+name: DAST Scan
+on:
+  push:
+    branches:
+      - main
+
 jobs:
   dast-scan:
     runs-on: ubuntu-latest
@@ -138,4 +144,3 @@ jobs:
             echo "Error: Failed to create GitHub Issue."
             exit 1
           fi
-```
