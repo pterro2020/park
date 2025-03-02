@@ -52,7 +52,6 @@ jobs:
 
       - name: Debug artifact URL
         run: echo "Artifact URL: ${{ env.artifact_url }}"  # Используем правильное имя переменной
-
       - name: Create GitHub Issue with ZAP report links
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
