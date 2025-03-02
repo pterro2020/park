@@ -24,7 +24,7 @@ jobs:
 
       - name: Download and run ZAP
         run: |
-          ZAP_VERSION="2.12.0"
+          ZAP_VERSION="2.14.0"
           wget https://github.com/zaproxy/zaproxy/releases/download/v$ZAP_VERSION/ZAP_$ZAP_VERSION\_Linux.tar.gz
           tar -xzf ZAP_$ZAP_VERSION\_Linux.tar.gz
           ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun zap-config.yaml
