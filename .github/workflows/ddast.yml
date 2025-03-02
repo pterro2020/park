@@ -3,12 +3,10 @@ on:
   push:
     branches:
       - main
-
 jobs:
   dast-scan:
     runs-on: ubuntu-latest
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -50,17 +48,15 @@ jobs:
 
       - name: Start ZAP in background
         run: |
-          # Используем порт 8080, если он занят, пробуем 8090, затем 8091 и так далее
-          for PORT in 8080 8090 8091 8092 8093; do
-            if ! sudo lsof -i :$PORT; then
-              echo "Starting ZAP on port $PORT"
-              sudo ./ZAP_2.16.0/zap.sh -daemon -port $PORT -host 0.0.0.0 -config api.disablekey=true &
-              sleep 10 # Даем ZAP время на запуск
-              break
-            else
-              echo "Port $PORT is in use."
-            fi
-          done
+          # Проверяем, занят ли порт 80
+          if ! sudo lsof -i :80; then
+            echo "Starting ZAP on port 80"
+            sudo ./ZAP_2.16.0/zap.sh -daemon -port 80 -host 0.0.0.0 -config api.disablekey=true &
+            sleep 10 # Даем ZAP время на запуск
+          else
+            echo "Port 80 is in use. Please stop the process using it."
+            exit 1
+          fi
 
       - name: Check if zap-script.js exists
         run: |
@@ -81,6 +77,7 @@ jobs:
             echo "Error: DAST scan reports not found."
             exit 1
           fi
+
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
