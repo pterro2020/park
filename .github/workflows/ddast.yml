@@ -24,14 +24,32 @@ jobs:
           mkdir -p ZAP_2.16.0
           wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
 
+          # Проверка, что ZAP скачан
+          if [ ! -f "./ZAP_2.16.0/zap.sh" ]; then
+            echo "Error: ZAP download failed."
+            exit 1
+          fi
+
       - name: Create reports directory
         run: |
           mkdir -p /home/runner/work/park/park/zap-reports
           chmod 777 /home/runner/work/park/park/zap-reports
 
+          # Проверка, что директория создана
+          if [ ! -d "/home/runner/work/park/park/zap-reports" ]; then
+            echo "Error: Failed to create reports directory."
+            exit 1
+          fi
+
       - name: Run DAST scan
         run: |
           ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/runner/work/park/park/zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
+
+          # Проверка, что отчеты созданы
+          if [ ! -f "/home/runner/work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/runner/work/park/park/zap-reports/zap-report.md" ]; then
+            echo "Error: DAST scan reports not found."
+            exit 1
+          fi
 
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
@@ -42,25 +60,41 @@ jobs:
       - name: Get artifact download URL
         id: artifact
         run: |
+          # Получаем URL артефакта
           ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/pterro2020/park/actions/artifacts \
             | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
 
+          # Проверка, что URL получен
           if [ -z "$ARTIFACT_URL" ]; then
             echo "Error: ARTIFACT_URL is empty or not found."
             exit 1
           fi
 
+          # Записываем URL в переменную окружения
           echo "artifact_url=${ARTIFACT_URL}" >> $GITHUB_ENV
 
       - name: Debug artifact URL
-        run: echo "artifact_url=${{ env.artifact_url }}"
+        run: |
+          # Проверка, что переменная artifact_url установлена
+          if [ -z "${{ env.artifact_url }}" ]; then
+            echo "Error: artifact_url is empty."
+            exit 1
+          fi
+
+          echo "artifact_url=${{ env.artifact_url }}"
 
       - name: Create GitHub Issue with ZAP report links
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Проверка, что переменная artifact_url доступна
+          if [ -z "${{ env.artifact_url }}" ]; then
+            echo "Error: artifact_url is not set."
+            exit 1
+          fi
+
           # Формируем тело Issue с ссылками на артефакты
           ISSUE_BODY="### ZAP Security Scan Report\n\n*HTML Report: [Download](${{ env.artifact_url }})\n\n*Markdown Report: [Download](${{ env.artifact_url }})"
 
@@ -74,3 +108,9 @@ jobs:
               "body": "'"$ISSUE_BODY"'",
               "labels": ["security", "zap"]
             }'
+
+          # Проверка, что Issue создан
+          if [ $? -ne 0 ]; then
+            echo "Error: Failed to create GitHub Issue."
+            exit 1
+          fi
