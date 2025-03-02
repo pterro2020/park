@@ -92,8 +92,7 @@ jobs:
 
           # Проверка, что URL получен
           if [ -z "$ARTIFACT_URL" ]; then
-            echo "Error: ARTIFACT_URL is empty or not found
-			."
+            echo "Error: ARTIFACT_URL is empty or not found."
             exit 1
           fi
 
