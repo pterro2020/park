@@ -38,8 +38,20 @@ jobs:
           name: zap-reports
           path: /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
 
-      - name: Upload ZAP report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
-          path: zap-report.html
+      - name: Create GitHub Issue with ZAP report links
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Формируем тело Issue с ссылками на артефакты
+          ISSUE_BODY="### ZAP Security Scan Report\n\n**HTML Report:** [Download](https://github.com/pterro2020/park/suites/.../artifacts/...)\n\n**Markdown Report:** [Download](https://github.com/pterro2020/park/suites/.../artifacts/...)"
+
+          # Создаем Issue через GitHub API
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/pterro2020/park/issues \
+            -d '{
+              "title": "ZAP Security Scan Report",
+              "body": "'"$ISSUE_BODY"'",
+              "labels": ["security", "zap"]
+            }'
