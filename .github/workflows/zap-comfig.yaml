@@ -1,0 +1,36 @@
+env:
+  contexts:
+    - name: "Park Project Context"
+      urls:
+        - "http://89.169.164.174:8080"  # Укажите URL вашего приложения
+      includePaths:
+        - "http://89.169.164.174:8080.*"  # Включаем все пути, начинающиеся с этого URL
+      excludePaths: []  # Исключенные пути (если есть)
+      authentication:
+        parameters: {}  # Настройки аутентификации (если требуется)
+      sessionManagement:
+        method: "cookie"  # Управление сессией через куки
+      technology:
+        exclude: []  # Исключенные технологии (если есть)
+  parameters:
+    failOnError: true  # Завершить выполнение при ошибке
+    failOnWarning: false  # Не завершать выполнение при предупреждениях
+    progressToStdout: true  # Выводить прогресс в стандартный вывод
+
+jobs:
+  - type: "spider"  # Пассивное сканирование (Spider)
+    parameters:
+      maxDuration: 10  # Максимальная длительность сканирования (в минутах)
+      context: "Park Project Context"
+
+  - type: "activeScan"  # Активное сканирование
+    parameters:
+      context: "Park Project Context"
+      policy: "Default Policy"  # Используемая политика сканирования
+
+  - type: "report"  # Генерация отчета
+    parameters:
+      template: "traditional-html"  # Шаблон отчета (HTML)
+      reportDir: "/home/pterrosamoilov/actions-runner/_work/park/park/zap-reports"  # Директория для сохранения отчета
+      reportTitle: "ZAP Scanning Report for Park Project"  # Заголовок отчета
+      reportDescription: "Scan results for the Park project"  # Описание отчета
