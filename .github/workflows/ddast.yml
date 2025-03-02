@@ -1,12 +1,8 @@
-name: DAST Scan
-on:
-  push:
-    branches:
-      - main
 jobs:
   dast-scan:
     runs-on: ubuntu-latest
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -21,8 +17,8 @@ jobs:
 
       - name: Download ZAP
         run: |
-          mkdir -p ZAP_2.16.0
-          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
+          sudo mkdir -p ZAP_2.16.0
+          sudo wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | sudo tar xz -C ZAP_2.16.0 --strip-components=1
 
           # Проверка, что ZAP скачан
           if [ ! -f "./ZAP_2.16.0/zap.sh" ]; then
@@ -44,15 +40,15 @@ jobs:
       - name: Stop ZAP if running
         run: |
           # Останавливаем ZAP, если он уже запущен
-          pkill -f "zap.sh" || echo "ZAP is not running."
+          sudo pkill -f "zap.sh" || echo "ZAP is not running."
 
       - name: Start ZAP in background
         run: |
           # Используем порт 8080, если он занят, пробуем 8090, затем 8091 и так далее
           for PORT in 8080 8090 8091 8092 8093; do
-            if ! lsof -i :$PORT; then
+            if ! sudo lsof -i :$PORT; then
               echo "Starting ZAP on port $PORT"
-              ./ZAP_2.16.0/zap.sh -daemon -port $PORT -host 0.0.0.0 -config api.disablekey=true &
+              sudo ./ZAP_2.16.0/zap.sh -daemon -port $PORT -host 0.0.0.0 -config api.disablekey=true &
               sleep 10 # Даем ZAP время на запуск
               break
             else
@@ -72,14 +68,13 @@ jobs:
           # Укажите URL вашего проекта
           PROJECT_URL="http://89.169.164.174/myparking/"
           # Запуск ZAP с правильными параметрами
-          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -quickurl $PROJECT_URL -dir /home/actions-runner/_work/park/park/zap-reports || { echo "DAST scan failed"; exit 1; }
+          sudo ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -quickurl $PROJECT_URL -dir /home/actions-runner/_work/park/park/zap-reports || { echo "DAST scan failed"; exit 1; }
 
           # Проверка, что отчеты созданы
           if [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.md" ]; then
             echo "Error: DAST scan reports not found."
             exit 1
           fi
-
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
@@ -91,14 +86,14 @@ jobs:
         run: |
           # Получаем URL артефакта
           ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application
-            /vnd.github.v3+json" \
+            -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/pterro2020/park/actions/artifacts \
             | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
 
           # Проверка, что URL получен
           if [ -z "$ARTIFACT_URL" ]; then
-            echo "Error: ARTIFACT_URL is empty or not found."
+            echo "Error: ARTIFACT_URL is empty or not found
+			."
             exit 1
           fi
 
@@ -144,3 +139,4 @@ jobs:
             echo "Error: Failed to create GitHub Issue."
             exit 1
           fi
+```
