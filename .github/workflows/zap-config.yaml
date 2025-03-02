@@ -74,8 +74,10 @@ jobs:
 
   - parameters:
       template: "risk-confidence-html"  # Шаблон отчета
+  - type: "report"
+    parameters:
       reportDir: "/home/pterrosamoilov/actions-runner/_work/park/park/zap-reports"  # Директория для сохранения отчета
       reportTitle: "ZAP Scanning Report for Park Project"
       reportDescription: "Scan results for the Park project"
     name: "report"
-    type: "report"
+
