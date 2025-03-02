@@ -44,11 +44,17 @@ jobs:
       - name: Get artifact download URL
         id: artifact
         run: |
-          ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/pterro2020/park/actions/artifacts \
-            | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
-          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV  # Устанавливаем переменную окружения
+ARTIFACT_URL=$(curl -s -H "Authorization: ***" \
+  -H "Accept: application/vnd.github.v3+json" \
+  https://api.github.com/repos/pterro2020/park/actions/artifacts \
+  | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
+
+if [ -z "$ARTIFACT_URL" ]; then
+  echo "Error: ARTIFACT_URL is empty or not found."
+  exit 1
+fi
+
+echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV
 
       - name: Debug artifact URL
         run: echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV  # Используем правильное имя переменной
