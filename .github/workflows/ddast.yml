@@ -6,40 +6,34 @@ on:
       - main
 
 jobs:
-  dast:
-    runs-on: ubuntu-latest  # Используем self-hosted runner
+  dast-scan:
+    runs-on: self-hosted
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
           java-version: '17'
+          distribution: 'temurin'
 
-      - name: Download OWASP ZAP
+      - name: Download ZAP
         run: |
-          echo "Downloading OWASP ZAP..."
-          ZAP_VERSION="2.16.0"  # Укажите нужную версию ZAP
-          ZAP_URL="https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Linux.tar.gz"
-          wget -O zap.tar.gz $ZAP_URL
-          tar -xzf zap.tar.gz
-          rm zap.tar.gz
-          echo "OWASP ZAP downloaded and extracted."
+          mkdir -p ZAP_2.16.0
+          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
 
-      - name: Run DAST Scan
+      - name: Create reports directory
         run: |
-          echo "Starting DAST scan..."
-          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/actions-runner/_work/park/park/zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
-          echo "DAST scan completed."
-          echo "Checking if reports were created..."
-          ls -R zap-reports
+          mkdir -p /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
+          chmod 777 /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Run DAST scan
+        run: |
+          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
+
+      - name: Upload ZAP reports
+        uses: actions/upload-artifact@v3
         with:
           name: zap-reports
-          path: |
-            /home/actions-runner/_work/park/park/zap-reports/zap-report.html
-            /home/actions-runner/_work/park/park/zap-reports/zap-report.md
+          path: /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
