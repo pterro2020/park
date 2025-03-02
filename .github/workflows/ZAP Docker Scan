@@ -1,0 +1,32 @@
+name: ZAP Docker Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  zap-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run ZAP with Docker
+        run: |
+          docker run -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable zap-baseline.py \
+            -t http://89.169.164.174:8080 \  # Укажите URL вашего приложения
+            -r zap-report.html \             # Сохранить отчет в формате HTML
+            -w zap-report.md                 # Сохранить отчет в формате Markdown
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: |
+            zap-report.html
+            zap-report.md
