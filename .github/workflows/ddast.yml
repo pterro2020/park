@@ -69,7 +69,7 @@ jobs:
       - name: Run DAST scan
         run: |
           # Запуск ZAP с правильными параметрами
-          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -dir /home/actions-runner/_work/park/park/zap-reports || echo "DAST scan failed"
+          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -dir /home/actions-runner/_work/park/park/zap-reports || { echo "DAST scan failed"; exit 1; }
 
           # Проверка, что отчеты созданы
           if [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.md" ]; then
@@ -122,7 +122,7 @@ jobs:
           fi
 
           # Формируем тело Issue с ссылками на артефакты
-          ISSUE_BODY="### ZAP Security Scan Report\n\n*HTML Report: [Download](${{ env.artifact_url }})\n\n*Markdown Report: [Download](${{ env.artifact_url }})"
+          ISSUE_BODY="### ZAP Security Scan Report\n\n*HTML Report: [Download](${ { env.artifact_url }})\n\n*Markdown Report: [Download](${ { env.artifact_url }})"
 
           # Создаем Issue через GitHub API
           curl -X POST \
