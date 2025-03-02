@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3  # Используем действие для клонирования репозитория
+        uses: actions/checkout@v4  # Используем действие для клонирования репозитория
 
       - name: Run ZAP with Docker
         run: |  # Используем `run` для выполнения команд
@@ -24,7 +24,7 @@ jobs:
             -w zap-report.md                # Сохранить отчет в формате Markdown
 
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v3  # Используем действие для загрузки артефактов
+        uses: actions/upload-artifact@v4  # Используем действие для загрузки артефактов
         with:
           name: zap-report
           path: |
