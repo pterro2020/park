@@ -10,8 +10,7 @@ on:
 
 jobs:
   zap-scan:
-     runs on: ubuntu-latest
-#    runs-on: [self-hosted, Linux, X64]
+    runs on: ubuntu-latest
 
     steps:
       - name: Checkout code
