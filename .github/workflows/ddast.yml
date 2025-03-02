@@ -1,72 +1,76 @@
+---
 name: DAST Scan
-
 on:
   push:
     branches:
       - main
-
 jobs:
   dast-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-
+          java-version: "17"
+          distribution: temurin
       - name: Install jq
         run: sudo apt-get install -y jq
-
       - name: Download ZAP
-        run: |
+        run: >
           mkdir -p ZAP_2.16.0
-          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
 
+          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
       - name: Create reports directory
         run: |
           mkdir -p /home/runner/work/park/park/zap-reports
           chmod 777 /home/runner/work/park/park/zap-reports
-
       - name: Run DAST scan
-        run: |
-          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/runner/work/park/park/zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
-
+        run: >
+          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir
+          /home/runner/work/park/park/zap-reports -r zap-report.html -w
+          zap-report.md || echo "DAST scan failed"
       - name: Upload ZAP reports
         uses: actions/upload-artifact@v4
         with:
           name: zap-reports
           path: /home/runner/work/park/park/zap-reports
-
       - name: Get artifact download URL
         id: artifact
-        run: |
-ARTIFACT_URL=$(curl -s -H "Authorization: ***" \
-  -H "Accept: application/vnd.github.v3+json" \
-  https://api.github.com/repos/pterro2020/park/actions/artifacts \
-  | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
+        run: >
+          ARTIFACT_URL=$(curl -s -H "Authorization: ***" \
 
-if [ -z "$ARTIFACT_URL" ]; then
-  echo "Error: ARTIFACT_URL is empty or not found."
-  exit 1
-fi
+          -H "Accept: application/vnd.github.v3+json" \
 
-echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV
+          https://api.github.com/repos/pterro2020/park/actions/artifacts \
 
+          | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
+
+
+          if [ -z "$ARTIFACT_URL" ]; then
+
+          echo "Error: ARTIFACT_URL is empty or not found."
+
+          exit 1
+
+          fi
+
+
+          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV
       - name: Debug artifact URL
-        run: echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV  # Используем правильное имя переменной
-
+        run: echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV
       - name: Create GitHub Issue with ZAP report links
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
+        run: >
           # Формируем тело Issue с ссылками на артефакты
+
           ISSUE_BODY="### ZAP Security Scan Report\n\n*HTML Report: [Download](${{ env.artifact_url }})\n\n*Markdown Report: [Download](${{ env.artifact_url }})"
 
+
           # Создаем Issue через GitHub API
+
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
