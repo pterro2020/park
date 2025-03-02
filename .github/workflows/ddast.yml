@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -33,7 +33,7 @@ jobs:
           ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports -r zap-report.html -w zap-report.md || echo "DAST scan failed"
 
       - name: Upload ZAP reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-reports
           path: /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
