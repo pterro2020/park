@@ -48,10 +48,10 @@ jobs:
 
       - name: Start ZAP in background
         run: |
-          # Используем порт 8090, если 8080 занят
+          # Используем порт 80, если 8080 занят
           if lsof -i :8080; then
             echo "Port 8080 is in use. Using port 8090 instead."
-            ZAP_PORT=8090
+            ZAP_PORT=80
           else
             ZAP_PORT=8080
           fi
