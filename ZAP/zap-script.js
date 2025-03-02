@@ -32,7 +32,7 @@ while (true) {
 
 // Генерация отчетов
 print("Generating reports...");
-var reportDir = "/home/runner/work/park/park/zap-reports";
+var reportDir = "/home/actions-runner/_work/park/park/zap-reports";
 client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html");
 client.reports.generate(targetUrl, "markdown", null, reportDir + "/zap-report.md");
 
