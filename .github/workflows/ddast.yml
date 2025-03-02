@@ -52,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV
+          echo "artifact_url=${ARTIFACT_URL}" >> $GITHUB_ENV
 
       - name: Debug artifact URL
         run: echo "artifact_url=${{ env.artifact_url }}"
