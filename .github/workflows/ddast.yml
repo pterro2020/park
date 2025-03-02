@@ -65,9 +65,10 @@ jobs:
       - name: Create GitHub Issue with ZAP report links
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_URL: ${{ env.artifact_url }}
         run: |
           # Формируем тело Issue с ссылками на артефакты
-          ISSUE_BODY="### ZAP Security Scan Report\n\n**HTML Report:** [Download](${{ env.artifact_url }})\n\n**Markdown Report:** [Download](${{ env.artifact_url }})"
+          ISSUE_BODY="### ZAP Security Scan Report\n\n**HTML Report:** [Download]($ARTIFACT_URL)\n\n**Markdown Report:** [Download]($ARTIFACT_URL)"
 
           # Создаем Issue через GitHub API
           curl -X POST \
