@@ -40,6 +40,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zap-reports
-          path: /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports
-            zap-reports/zap-report.html
-            zap-reports/zap-report.md
+          path: |
+            /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports/zap-report.html
+            /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports/zap-report.md
