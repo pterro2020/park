@@ -1,4 +1,4 @@
-name: ZAP Docker Scan
+name: ZAP Automated Scan
 
 on:
   push:
@@ -14,19 +14,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Используем действие для клонирования репозитория
+        uses: actions/checkout@v4
 
-      - name: Run ZAP with Docker
-        run: |  # Используем `run` для выполнения команд
-          docker run -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable zap-baseline.py \
-            -t http://89.169.164.174:8080 \  # Укажите URL вашего приложения
-            -r zap-report.html \             # Сохранить отчет в формате HTML
-            -w zap-report.md                # Сохранить отчет в формате Markdown
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Download and run ZAP
+        run: |
+          ZAP_VERSION="2.16.0"  # Укажите актуальную версию
+          wget https://github.com/zaproxy/zaproxy/releases/download/v$ZAP_VERSION/ZAP_${ZAP_VERSION//./_}_Linux.tar.gz
+          tar -xzf ZAP_${ZAP_VERSION//./_}_Linux.tar.gz
+          ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun ./zap-config.yaml  # Укажите правильный путь к файлу
 
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v4  # Используем действие для загрузки артефактов
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
-          path: |
-            zap-report.html
-            zap-report.md
+          path: zap-report.html
