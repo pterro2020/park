@@ -74,7 +74,7 @@ jobs:
 
   - parameters:
       template: "risk-confidence-html"  # Шаблон отчета
-      reportDir: "/zap/wrk"  # Директория для сохранения отчета
+      reportDir: ""../zap-reports"  # Директория для сохранения отчета
       reportTitle: "ZAP Scanning Report for Park Project"
       reportDescription: "Scan results for the Park project"
     name: "report"
