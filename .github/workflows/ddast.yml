@@ -32,11 +32,11 @@ jobs:
 
       - name: Create reports directory
         run: |
-          mkdir -p /home/runner/work/park/park/zap-reports
-          chmod 777 /home/runner/work/park/park/zap-reports
+          mkdir -p /home/actions-runner/_work/park/park/zap-reports
+          chmod 777 /home/actions-runner/_work/park/park/zap-reports
 
           # Проверка, что директория создана
-          if [ ! -d "/home/runner/work/park/park/zap-reports" ]; then
+          if [ ! -d "/home/actions-runner/_work/park/park/zap-reports" ]; then
             echo "Error: Failed to create reports directory."
             exit 1
           fi
@@ -69,10 +69,10 @@ jobs:
       - name: Run DAST scan
         run: |
           # Запуск ZAP с правильными параметрами
-          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -dir /home/runner/work/park/park/zap-reports || echo "DAST scan failed"
+          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -dir /home/actions-runner/_work/park/park/zap-reports || echo "DAST scan failed"
 
           # Проверка, что отчеты созданы
-          if [ ! -f "/home/runner/work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/runner/work/park/park/zap-reports/zap-report.md" ]; then
+          if [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/actions-runner/_work/park/park/zap-reports/zap-report.md" ]; then
             echo "Error: DAST scan reports not found."
             exit 1
           fi
