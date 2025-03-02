@@ -44,7 +44,7 @@ jobs:
       - name: Run DAST scan
         run: |
           # Запуск ZAP с правильными параметрами
-          ./ZAP_2.16.0/zap.sh -cmd -autorun /ZAP/zap-script.js -dir /home/runner/work/park/park/zap-reports || echo "DAST scan failed"
+          ./ZAP_2.16.0/zap.sh -cmd -autorun ./ZAP/zap-script.js -dir /home/runner/work/park/park/zap-reports || echo "DAST scan failed"
 
           # Проверка, что отчеты созданы
           if [ ! -f "/home/runner/work/park/park/zap-reports/zap-report.html" ] || [ ! -f "/home/runner/work/park/park/zap-reports/zap-report.md" ]; then
