@@ -14,7 +14,7 @@ try {
     print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
     exit(1);
 }
-
+ 
 // Запуск сканирования
 print("Starting active scan for: " + targetUrl);
 var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
