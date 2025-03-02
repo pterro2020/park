@@ -29,7 +29,7 @@ jobs:
           ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun zap-config.yaml
 
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: zap-report.html
