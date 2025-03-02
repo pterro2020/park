@@ -32,8 +32,8 @@ jobs:
 
       - name: Create reports directory
         run: |
-          sudo mkdir -p /home/actions-runner/_work/park/park/zap-reports
-          sudo chmod 777 /home/actions-runner/_work/park/park/zap-reports
+          mkdir -p /home/actions-runner/_work/park/park/zap-reports
+          chmod 777 /home/actions-runner/_work/park/park/zap-reports
 
           # Проверка, что директория создана
           if [ ! -d "/home/actions-runner/_work/park/park/zap-reports" ]; then
@@ -48,16 +48,17 @@ jobs:
 
       - name: Start ZAP in background
         run: |
-          # Используем порт 8090, если 8080 занят
-          if lsof -i :8080; then
-            echo "Port 8080 is in use. Using port 8090 instead."
-            ZAP_PORT=8090
-          else
-            ZAP_PORT=8080
-          fi
-
-          ./ZAP_2.16.0/zap.sh -daemon -port $ZAP_PORT -host 0.0.0.0 -config api.disablekey=true &
-          sleep 10 # Даем ZAP время на запуск
+          # Используем порт 8080, если он занят, пробуем 8090, затем 8091 и так далее
+          for PORT in 8080 8090 8091 8092 8093; do
+            if ! lsof -i :$PORT; then
+              echo "Starting ZAP on port $PORT"
+              ./ZAP_2.16.0/zap.sh -daemon -port $PORT -host 0.0.0.0 -config api.disablekey=true &
+              sleep 10 # Даем ZAP время на запуск
+              break
+            else
+              echo "Port $PORT is in use."
+            fi
+          done
 
       - name: Check if zap-script.js exists
         run: |
