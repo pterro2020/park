@@ -22,18 +22,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Download and run ZAP
+      - name: Download ZAP
         run: |
           ZAP_VERSION="2.16.0"  # Укажите актуальную версию
           wget https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
           tar -xzf ZAP_2.16.0_Linux.tar.gz
-     
+
       - name: Copy ZAP config
         run: |
           mkdir -p /home/runner/work/park/park/ZAP_2.16.0
           cp zap-config.yaml /home/runner/work/park/park/ZAP_2.16.0/
           chmod 644 /home/runner/work/park/park/ZAP_2.16.0/zap-config.yaml
-     
+
+      - name: Check server availability
+        run: |
+          if ! curl -I http://89.169.164.174:8080; then
+            echo "Server is not available!"
+            exit 1
+          fi
+
       - name: Run ZAP scan
         run: |
           ./ZAP_2.16.0/zap.sh -cmd -autorun /home/runner/work/park/park/ZAP_2.16.0/zap-config.yaml
