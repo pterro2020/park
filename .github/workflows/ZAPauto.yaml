@@ -10,7 +10,7 @@ on:
 
 jobs:
   zap-scan:
-    runs-on: self-hosted
+    runs-on: [self-hosted, local-dast-runner]
 
     steps:
       - name: Checkout code
