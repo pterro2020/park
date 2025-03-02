@@ -41,6 +41,11 @@ jobs:
             exit 1
           fi
 
+      - name: Start ZAP in background
+        run: |
+          ./ZAP_2.16.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true &
+          sleep 10 # Даем ZAP время на запуск
+
       - name: Run DAST scan
         run: |
           # Запуск ZAP с правильными параметрами
