@@ -27,7 +27,16 @@ jobs:
           ZAP_VERSION="2.16.0"  # Укажите актуальную версию
           wget https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
           tar -xzf ZAP_2.16.0_Linux.tar.gz
-          ./ZAP_2.16.0/zap.sh -cmd -autorun /home/pterrosamoilov/actions-runner/_work/park/park/ZAP_2.16.0/zap-config.yaml  # Укажите правильный путь к файлу
+     
+      - name: Copy ZAP config
+        run: |
+          mkdir -p /home/runner/work/park/park/ZAP_2.16.0
+          cp zap-config.yaml /home/runner/work/park/park/ZAP_2.16.0/
+          chmod 644 /home/runner/work/park/park/ZAP_2.16.0/zap-config.yaml
+     
+      - name: Run ZAP scan
+        run: |
+          ./ZAP_2.16.0/zap.sh -cmd -autorun /home/runner/work/park/park/ZAP_2.16.0/zap-config.yaml
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
