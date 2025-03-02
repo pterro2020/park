@@ -16,14 +16,14 @@ env:
           pollPostData: ""
       sessionManagement:
         method: "cookie"  # Управление сессией через куки
-        parameters: {}
+        parameters:
       technology:
         exclude: []  # Исключенные технологии (если есть)
-  parameters:
-    failOnError: true  # Завершить выполнение при ошибке
-    failOnWarning: false  # Не завершать выполнение при предупреждениях
-    progressToStdout: true  # Выводить прогресс в стандартный вывод
-  vars: {}  # Дополнительные переменные (если есть)
+      parameters:
+        failOnError: true  # Завершить выполнение при ошибке
+        failOnWarning: false  # Не завершать выполнение при предупреждениях
+        progressToStdout: true  # Выводить прогресс в стандартный вывод
+   vars: {} # Дополнительные переменные (если есть)
 
 jobs:
   - parameters:
