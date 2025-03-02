@@ -41,5 +41,5 @@ jobs:
         with:
           name: zap-reports
           path: |
-            /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports/zap-report.html
-            /home/pterrosamoilov/actions-runner/_work/park/park/zap-reports/zap-report.md
+            /home/pterrosamoilov/actions-runner/zap-reports/zap-report.html
+            /home/pterrosamoilov/actions-runner/zap-reports/zap-report.md
