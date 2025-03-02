@@ -4,7 +4,7 @@ var scanPolicyName = "Default Policy"; // Используемая полити�
 
 // Инициализация ZAP
 print("Initializing ZAP...");
-var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 80); // Используйте порт 80, если 8080 занят
+var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 8090); // Используйте порт 8090, если 8080 занят
  
 // Проверка доступности ZAP API
 try {
