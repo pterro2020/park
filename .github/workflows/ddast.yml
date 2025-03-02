@@ -48,17 +48,17 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/pterro2020/park/actions/artifacts \
             | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
-          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV
+          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_ENV  # Устанавливаем переменную окружения
 
       - name: Debug artifact URL
-        run: echo "Artifact URL: ${{ env.artifact_url }}"
+        run: echo "Artifact URL: ${{ env.artifact_url }}"  # Используем правильное имя переменной
 
       - name: Create GitHub Issue with ZAP report links
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Формируем тело Issue с ссылками на артефакты
-          ISSUE_BODY="### ZAP Security Scan Report\n\n**HTML Report:** [Download](${{ env.artifact_url }})\n\n**Markdown Report:** [Download](${{ env.artifact_url }})"
+          ISSUE_BODY="### ZAP Security Scan Report\n\n*HTML Report: [Download](${{ env.artifact_url }})\n\n*Markdown Report: [Download](${{ env.artifact_url }})"
 
           # Создаем Issue через GitHub API
           curl -X POST \
