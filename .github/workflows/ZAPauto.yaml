@@ -23,11 +23,14 @@ jobs:
           java-version: '17'       # Указываем версию Java
 
       - name: Download and run ZAP
+      - name: Run ZAP with Docker
         run: |
-          ZAP_VERSION="2.16.0"
-          wget https://github.com/zaproxy/zaproxy/releases/download/v$ZAP_VERSION/ZAP_$ZAP_VERSION\_Linux.tar.gz
-          tar -xzf ZAP_$ZAP_VERSION\_Linux.tar.gz
-          ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun zap-config.yaml
+          docker run -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable zap-baseline.py -t http://89.169.164.174:8080 -r zap-report.html
+#        run: |
+#          ZAP_VERSION="2.16.0"
+#          wget https://github.com/zaproxy/zaproxy/releases/download/v$ZAP_VERSION/ZAP_$ZAP_VERSION\_Linux.tar.gz
+#          tar -xzf ZAP_$ZAP_VERSION\_Linux.tar.gz
+#          ./ZAP_$ZAP_VERSION/zap.sh -cmd -autorun zap-config.yaml
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
