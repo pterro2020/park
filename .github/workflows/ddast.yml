@@ -90,9 +90,9 @@ jobs:
         id: artifact
         run: |
           # Получаем URL артефакта
-          ARTIFACT_URL=$(curl -s -H "
-          Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
+          ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application
+            /vnd.github.v3+json" \
             https://api.github.com/repos/pterro2020/park/actions/artifacts \
             | jq -r '.artifacts[] | select(.name == "zap-reports") | .archive_download_url')
 
