@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'  # Указываем дистрибутив Java (например, Temurin, Zulu и т.д.)
-          java-version: '11'       # Указываем версию Java
+          java-version: '17'       # Указываем версию Java
 
       - name: Download and run ZAP
         run: |
