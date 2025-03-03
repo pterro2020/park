@@ -49,6 +49,13 @@ jobs:
             critical-bandit-report.json
 
   dast-scan:
+    stage: test
+    image: owasp/zap2docker-stable
+    script:
+    - export ZAP_HOME=/tmp/zap_home
+    - mkdir -p $ZAP_HOME
+    - zap.sh -cmd -quickstart -quickstart.file $ZAP_HOME/my_scan -quickstart.import $ZAP_HOME/http://89.169.164.174/myparking/
+
     runs-on: ubuntu-latest
     needs: sast-scan  # DAST будет выполнен после завершения SAST
     steps:
