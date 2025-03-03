@@ -65,7 +65,7 @@ jobs:
       - name: Download ZAP
         run: |
           sudo mkdir -p ZAP_2.15.0
-          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.15.0/ZAP_2.15.0_Linux.tar.gz | tar xz -C ZAP_2.15.0 --strip-components=1
+          sudo wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.15.0/ZAP_2.15.0_Linux.tar.gz | sudo tar xz -C ZAP_2.15.0 --strip-components=1
 
           # Проверяем, что ZAP скачан
           if [ ! -f "./ZAP_2.15.0/zap.sh" ]; then
