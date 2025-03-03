@@ -60,6 +60,10 @@ jobs:
         run: |
           pwsh -Command "Invoke-ScriptAnalyzer -Path . -Recurse -OutputFormat JSON | Out-File -FilePath psreport.json" || true  # Запускаем проверку PowerShell, игнорируем ошибки
 
+      - name: List files in current directory
+        run: |
+          ls -la  # Выводим список файлов в текущей директории для отладки
+
       - name: Upload SAST reports
         uses: actions/upload-artifact@v4
         with:
@@ -101,6 +105,4 @@ jobs:
       - name: Create ZAP script for DAST
         run: |
           # Создаем файл zap-script.js для DAST сканирования
-          cat << 'EOF' > ./ZAP_2.16.0/zap-script.js 
-          # Скрипт для ZAP
-          var targetUrl = "http://89.169.164.174/myparking/";
+          cat << 'EOF'
