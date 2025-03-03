@@ -58,13 +58,24 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq  # Устанавливаем jq для работы с JSON
 
+      - name: Clone OWASP ZAP repository
+        run: |
+          git clone https://github.com/zaproxy/zaproxy.git
+          cd zaproxy
+          git checkout stable  # Используем стабильную ветку
+
+      - name: Build ZAP Docker image
+        run: |
+          cd zaproxy
+          docker build -t zap-local .  # Собираем Docker-образ ZAP
+
       - name: Create reports directory
         run: |
           mkdir -p zap-reports  # Создаем директорию для отчетов ZAP
 
       - name: Run ZAP in Docker
         run: |
-          docker run -u zap -p 8080:8080 -v $(pwd)/zap-reports:/zap/reports owasp/zap2docker-weekly zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
+          docker run -u zap -p 8080:8080 -v $(pwd)/zap-reports:/zap/reports zap-local zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
 
       - name: Create ZAP script for DAST
         run: |
@@ -81,9 +92,9 @@ jobs:
           // Проверка доступности ZAP API
           try {
           var version = client.core.version();
-            print("Connected to ZAP API version: " + version);
+          print("Connected to ZAP API version: " + version);
           } catch (e) {
-            print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
+          print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
           exit(1);
           }
 
@@ -112,7 +123,7 @@ jobs:
 
       - name: Run ZAP script
         run: |
-          docker run -u zap -v $(pwd)/zap-reports:/zap/reports -v $(pwd)/zap-script.js:/zap/script.js owasp/zap2docker-weekly zap.sh -cmd -script /zap/script.js
+          docker run -u zap -v $(pwd)/zap-reports:/zap/reports -v $(pwd)/zap-script.js:/zap/script.js zap-local zap.sh -cmd -script /zap/script.js
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
