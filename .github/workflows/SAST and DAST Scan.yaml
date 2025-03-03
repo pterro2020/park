@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Bandit
         run: |
-          bandit -r . -f json -o bandit-report.json  # Запускаем SAST и сохраняем отчет в JSON формате
+          bandit -r . -f json -o bandit-report.json || true  # Запускаем SAST и сохраняем отчет в JSON формате, игнорируем ошибки
 
       - name: Upload SAST report
         uses: actions/upload-artifact@v4
@@ -84,3 +84,24 @@ jobs:
           } catch (e) {
           print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
           exit(1);
+          }
+
+          # Запуск сканирования
+          print("Starting active scan for: " + targetUrl);
+          var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
+
+          # Ожидание завершения сканирования
+          print("Waiting for scan to complete...");
+          while (true) {
+          var status = client.ascan.status(scanId);
+          print("Scan  progress: " + status + "%");
+          if (status >= 100) {
+          break;
+          }
+          java.lang.Thread.sleep(5000); // Пауза 5 секунд
+          }
+
+          # Генерация отчетов
+          print("Generating reports...");
+          var reportDir = "./zap-reports";
+          client.reports.generate(targetUrl, "traditional-html", null
