@@ -145,3 +145,9 @@ jobs:
           title: "DAST Scan Results"
           content-filepath: ./zap-reports/zap-report.json
           labels: dast, security
+
+      - name: Clean up ZAP directory
+        run: |
+          # Удаляем папку ZAP_2.15.0 после завершения DAST
+          rm -rf ./ZAP_2.15.0
+          echo "ZAP directory cleaned up."
