@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'  # Устанавливаем нужную версию Python
+          python-version: '3.9'  # Устанавливаем нужную версию Python
 
       - name: Install Bandit
         run: |
@@ -30,7 +30,7 @@ jobs:
 
       - name: Extract critical issues from Bandit report
         run: |
-          # Извлекаем только критические ошибки из отчета Bandit
+          # Для уменьшения объема извлекаем только критические ошибки из отчета Bandit
           jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
 
       - name: Create SAST Issues
