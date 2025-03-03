@@ -152,7 +152,7 @@ jobs:
            client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
            client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
            print("Reports generated successfully.");
-EOF
+           EOF
 
       - name: Run ZAP script
         run: |
