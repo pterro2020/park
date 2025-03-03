@@ -86,12 +86,12 @@ jobs:
           echo "ZAP_HOME set to: $ZAP_HOME"
 
       - name: Start ZAP in background
-#        run: |
-          # Запускаем ZAP с указанием домашней директории
-#          ./ZAP_2.15.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true -dir "$ZAP_HOME" &
-#          sleep 30  # Ждем, пока ZAP запустится
-         subprocess.run(["./ZAP_2.15.0/zap.sh", "-daemon", "-port", "8080", "-host", "0.0.0.0", "-config", "api.disablekey=true", "-dir", zap_home])
-
+        run: |
+          # Запускаем ZAP с указанием домашней директории через переменную окружения и параметр -dir
+          export ZAP_HOME
+          ./ZAP_2.15.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true -dir "$ZAP_HOME" &
+          sleep 10  # Ждем, пока ZAP запустится
+          
       - name: Create ZAP script for DAST
         run: |
           # Создаем файл zap-script.js для DAST сканирования
