@@ -1,137 +1,147 @@
+name: SAST and DAST Scan
+
 on:
   push:
     branches:
-    - main
+      - main
 
 jobs:
   sast-scan:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0 # Получаем всю историю, чтобы SAST мог анализировать все файлы
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Получаем всю историю, чтобы SAST мог анализировать все файлы
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.8' # Устанавливаем нужную версию Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'  # Устанавливаем нужную версию Python
 
-    - name: Install Bandit
-      run: |
-        python -m pip install --upgrade pip
-        pip install bandit  # Устанавливаем Bandit для SAST
+      - name: Install Bandit
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit  # Устанавливаем Bandit для SAST
 
-    - name: Run Bandit (Python)
-      run: |
-        bandit -r . -f json -o bandit-report.json || true  # Запускаем SAST для Python и сохраняем отчет в JSON формате, игнорируем ошибки
+      - name: Run Bandit (Python)
+        run: |
+          bandit -r . -f json -o bandit-report.json || true  # Запускаем SAST для Python и сохраняем отчет в JSON формате, игнорируем ошибки
 
-    - name: Extract critical issues from Bandit report
-      run: |
-        # Извлекаем только критические ошибки из отчета Bandit
-        jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
+      - name: Extract critical issues from Bandit report
+        run: |
+          # Извлекаем только критические ошибки из отчета Bandit
+          jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
 
-    - name: Create SAST Issues
-      uses: peter-evans/create-issue-from-file@v4
-      with:
-        title: "SAST Scan Results (Critical Issues)"
-        content-filepath: ./critical-bandit-report.json
-        labels: sast, security
+      - name: Create SAST Issues
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          title: "SAST Scan Results (Critical Issues)"
+          content-filepath: ./critical-bandit-report.json
+          labels: sast, security
 
-    - name: Upload SAST reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: reports
-        path: |
-          bandit-report.json
-          critical-bandit-report.json
+      - name: Upload SAST reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            bandit-report.json
+            critical-bandit-report.json
+
   dast-scan:
     runs-on: ubuntu-latest
-    needs: sast-scan # DAST будет выполнен после завершения SAST
+    needs: sast-scan  # DAST будет выполнен после завершения SAST
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install jq
-      run: sudo apt-get install -y jq # Устанавливаем jq для работы с JSON
+      - name: Install jq
+        run: sudo apt-get install -y jq  # Устанавливаем jq для работы с JSON
 
-    - name: Download ZAP
-      run: |
-        mkdir -p ZAP_2.16.0
-        wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
+      - name: Download ZAP
+        run: |
+          mkdir -p ZAP_2.16.0
+          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
 
-        # Проверяем, что ZAP скачан
-        if [ ! -f "./ZAP_2.16.0/zap.sh" ]; then
-          echo "Error: ZAP download failed."
-          exit 1
-        fi
+          # Проверяем, что ZAP скачан
+          if [ ! -f "./ZAP_2.16.0/zap.sh" ]; then
+            echo "Error: ZAP download failed."
+            exit 1
+          fi
 
-    - name: Create reports directory
-      run: |
-        mkdir -p zap-reports  # Создаем директорию для отчетов ZAP
+      - name: Create reports directory
+        run: |
+          mkdir -p zap-reports  # Создаем директорию для отчетов ZAP
 
-    - name: Start ZAP in background
-      run: |
-        # Запускаем ZAP в фоновом режиме
-        ./ZAP_2.16.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true &
-        sleep 10  # Ждем, пока ZAP запустится
+      - name: Set unique ZAP home directory
+        run: |
+          # Устанавливаем уникальную домашнюю директорию для ZAP
+          export ZAP_HOME=$(mktemp -d)
+          echo "ZAP_HOME set to: $ZAP_HOME"
 
-    - name: Create ZAP script for DAST
-      run: |
-        # Создаем файл zap-script.js для DAST сканирования
-        cat << 'EOF' > ./ZAP_2.16.0/zap-script.js
-        // Скрипт для ZAP
-        var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
-        var scanPolicyName = "Default Policy"; // Используемая политика сканирования
+      - name: Start ZAP in background
+        run: |
+          # Запускаем ZAP в фоновом режиме с уникальной домашней директорией
+          ./ZAP_2.16.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true -dir "$ZAP_HOME" &
+          sleep 10  # Ждем, пока ZAP запустится
 
-        // Инициализация ZAP
-        print("Initializing ZAP...");
-        var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 8080);
+      - name: Create ZAP script for DAST
+        run: |
+          # Создаем файл zap-script.js для DAST сканирования
+          cat << 'EOF' > ./ZAP_2.16.0/zap-script.js
+          // Скрипт для ZAP
+            var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
+            var scanPolicyName = "Default Policy"; // Используемая политика сканирования
 
-        // Проверка доступности ZAP API
-        try {
-        var version = client.core.version();
-        print("Connected to ZAP API version: " + version);
-        } catch (e) {
-        print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
-        exit(1);
-        }
-        // Запуск сканирования
-        print("Starting active scan for: " + targetUrl);
-        var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
+          // Инициализация ZAP
+            print("Initializing ZAP...");
+            var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 8080);
 
-        // Ожидание завершения сканирования
-        print("Waiting for scan to complete...");
-        while (true) {
-        var status = client.ascan.status(scanId);
-        print("Scan progress: " + status + "%");
-        if (status >= 100) {
-        break;
-        }
-        java.lang.Thread.sleep(5000); // Пауза 5 секунд
-        }
+          // Проверка доступности ZAP API
+            try {
+            var version = client.core.version();
+            print("Connected to ZAP API version: " + version);
+            } catch (e) {
+            print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
+            exit(1);
+            }
 
-        // Генерация отчетов
-        print("Generating reports...");
-        var reportDir = "./zap-reports";
-        client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
-        client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
-        print("Reports generated successfully.");
-        EOF
+            // Запуск сканирования
+            print("Starting active scan for: " + targetUrl);
+            var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
 
-    - name: Run ZAP script
-      run: |
-        ./ZAP_2.16.0/zap.sh -cmd -script ./ZAP_2.16.0/zap-script.js
+            // Ожидание завершения сканирования
+            print("Waiting for scan to complete...");
+            while (true) {
+            var status = client.ascan.status(scanId);
+            print("Scan progress: " + status + "%");
+            if (status >= 100) {
+            break;
+            }
+            java.lang.Thread.sleep(5000); // Пауза 5 секунд
+            }
 
-    - name: Upload DAST report
-      uses: actions/upload-artifact@v4
-      with:
-        name: zap-reports
-        path: zap-reports # Загружаем отчеты DAST как артефакт
+            // Генерация отчетов
+            print("Generating reports...");
+            var reportDir = "./zap-reports";
+            client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
+            client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
+            print("Reports generated successfully.");
+            EOF
 
-    - name: Create DAST Issues
-      uses: peter-evans/create-issue-from-file@v4
-      with:
-        title: "DAST Scan Results"
-        content-filepath: ./zap-reports/zap-report.json
-        labels: dast, security
+      - name: Run ZAP script
+        run: |
+          ./ZAP_2.16.0/zap.sh -cmd -script ./ZAP_2.16.0/zap-script.js -dir "$ZAP_HOME"
+
+      - name: Upload DAST report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports
+          path: zap-reports  # Загружаем отчеты DAST как артефакт
+
+      - name: Create DAST Issues
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          title: "DAST Scan Results"
+          content-filepath: ./zap-reports/zap-report.json
+          labels: dast, security
