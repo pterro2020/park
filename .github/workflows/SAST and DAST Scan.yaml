@@ -58,37 +58,18 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq  # Устанавливаем jq для работы с JSON
 
-      - name: Download ZAP
-        run: |
-          mkdir -p ZAP_2.16.0
-          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C ZAP_2.16.0 --strip-components=1
-
-          # Проверяем, что ZAP скачан
-          if [ ! -f "./ZAP_2.16.0/zap.sh" ]; then
-            echo "Error: ZAP download failed."
-            exit 1
-          fi
-
       - name: Create reports directory
         run: |
           mkdir -p zap-reports  # Создаем директорию для отчетов ZAP
 
-      - name: Set unique ZAP home directory
+      - name: Run ZAP in Docker
         run: |
-          # Создаем уникальную домашнюю директорию для ZAP
-          export ZAP_HOME=$(mktemp -d)
-          echo "ZAP_HOME set to: $ZAP_HOME"
-
-      - name: Start ZAP in background
-        run: |
-          # Запускаем ZAP в фоновом режиме с уникальной домашней директорией
-          ./ZAP_2.16.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true -dir "$ZAP_HOME" &
-          sleep 10  # Ждем, пока ZAP запустится
+          docker run -u zap -p 8080:8080 -v $(pwd)/zap-reports:/zap/reports owasp/zap2docker-stable zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
 
       - name: Create ZAP script for DAST
         run: |
           # Создаем файл zap-script.js для DAST сканирования
-          cat << 'EOF' > ./ZAP_2.16.0/zap-script.js
+          cat << 'EOF' > ./zap-script.js
           // Скрипт для ZAP
           var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
           var scanPolicyName = "Default Policy"; // Используемая политика сканирования
@@ -100,9 +81,9 @@ jobs:
           // Проверка доступности ZAP API
           try {
           var version = client.core.version();
-          print("Connected to ZAP API version: " + version);
+            print("Connected to ZAP API version: " + version);
           } catch (e) {
-          print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
+            print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
           exit(1);
           }
 
@@ -131,7 +112,7 @@ jobs:
 
       - name: Run ZAP script
         run: |
-          ./ZAP_2.16.0/zap.sh -cmd -script ./ZAP_2.16.0/zap-script.js -dir "$ZAP_HOME"
+          docker run -u zap -v $(pwd)/zap-reports:/zap/reports -v $(pwd)/zap-script.js:/zap/script.js owasp/zap2docker-stable zap.sh -cmd -script /zap/script.js
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
