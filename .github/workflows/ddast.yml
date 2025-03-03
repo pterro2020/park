@@ -88,7 +88,6 @@ jobs:
             client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html");
             client.reports.generate(targetUrl, "markdown", null, reportDir + "/zap-report.md");
             print("Scan completed and reports generated.");
-            EOF
           fi
 
       - name: Stop ZAP if running
