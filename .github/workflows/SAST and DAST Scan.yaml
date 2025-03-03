@@ -84,37 +84,3 @@ jobs:
           } catch (e) {
           print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
           exit(1);
-          }
-
-		  # Запуск сканирования
-          print("Starting active scan for: " + targetUrl);
-          var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
-
-          # Ожидание завершения сканирования
-          print("Waiting for scan to complete...");
-          while (true) {
-          var status = client.ascan.status(scanId);
-          print("Scan progress: " + status + "%");
-          if (status >= 100) {
-          break;
-          }
-          java.lang.Thread.sleep(5000); // Пауза 5 секунд
-          }
-
-          # Генерация отчетов
-          print("Generating reports...");
-          var reportDir = "./zap-reports";
-          client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
-          client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
-          print("Reports generated successfully.");
-EOF
-
-      - name: Run ZAP script
-        run: |
-          ./ZAP_2.16.0/zap.sh -cmd -script ./ZAP_2.16.0/zap-script.js
-
-      - name: Upload DAST report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-reports
-          path: zap-reports  # Загружаем отчеты DAST как артефакт
