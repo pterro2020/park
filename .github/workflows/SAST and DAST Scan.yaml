@@ -94,7 +94,7 @@ jobs:
           print("Waiting for scan to complete...");
           while (true) {
           var status = client.ascan.status(scanId);
-          print("Scan  progress: " + status + "%");
+          print ("Scan progress: " + status + "%");
           if (status >= 100) {
           break;
           }
@@ -103,5 +103,5 @@ jobs:
 
           # Генерация отчетов
           print("Generating reports...");
-          var reportDir = "./zap-reports";
-          client.reports.generate(targetUrl, "traditional-html", null
+          var reportDir = "./
+
