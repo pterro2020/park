@@ -54,7 +54,7 @@ jobs:
 
       - name: Install PSScriptAnalyzer
         run: |
-          Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser   # Устанавливаем PSScriptAnalyzer для проверки PowerShell
+          pwsh -Command "Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser "  # Устанавливаем PSScriptAnalyzer для проверки PowerShell
 
       - name: Run PSScriptAnalyzer
         run: |
@@ -96,3 +96,11 @@ jobs:
         run: |
           # Запускаем ZAP в фоновом режиме
           ./ZAP_2.16.0/zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true &
+          sleep 10  # Ждем, пока ZAP запустится
+
+      - name: Create ZAP script for DAST
+        run: |
+          # Создаем файл zap-script.js для DAST сканирования
+          cat << 'EOF' > ./ZAP_2.16.0/zap-script.js 
+          # Скрипт для ZAP
+          var targetUrl = "http://89.169.164.174/myparking/";
