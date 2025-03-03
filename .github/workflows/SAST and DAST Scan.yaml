@@ -57,7 +57,11 @@ jobs:
 
       - name: Install jq
         run: sudo apt-get install -y jq  # Устанавливаем jq для работы с JSON
-
+        
+      - name: Clean ZAP home directory
+        run: |
+          rm -rf ~/.ZAP_2.15.0/  # Очищаем домашнюю директорию ZAP
+          
       - name: Download ZAP
         run: |
           mkdir -p ZAP_2.15.0
