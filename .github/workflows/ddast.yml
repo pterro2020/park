@@ -49,7 +49,7 @@ jobs:
           # Создаем файл zap-script.js, если он не существует
           if [ ! -f "./ZAP/zap-script.js" ]; then
             echo "Creating zap-script.js..."
-            cat << 'EOF' > ./ZAP/zap-script.js
+            cat ./ZAP/zap-script.js
           // Пример скрипта для ZAP
             var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
             var scanPolicyName = "Default Policy"; // Используемая политика сканирования
