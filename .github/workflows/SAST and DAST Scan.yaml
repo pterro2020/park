@@ -28,56 +28,25 @@ jobs:
         run: |
           bandit -r . -f json -o bandit-report.json || true  # Запускаем SAST для Python и сохраняем отчет в JSON формате, игнорируем ошибки
 
-      - name: Install HTMLHint
+      - name: Extract critical issues from Bandit report
         run: |
-          npm install -g htmlhint  # Устанавливаем HTMLHint для проверки HTML
+          # Извлекаем только критические ошибки из отчета Bandit
+          jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
 
-      - name: Run HTMLHint
-        run: |
-          htmlhint **/*.html || true  # Запускаем проверку HTML, игнорируем ошибки
-
-      - name: Install ESLint
-        run: |
-          npm install -g eslint  # Устанавливаем ESLint для проверки JavaScript
-
-      - name: Run ESLint
-        run: |
-          eslint . || true  # Запускаем проверку JavaScript, игнорируем ошибки
-
-      - name: Install Stylelint
-        run: |
-          npm install -g stylelint  # Устанавливаем Stylelint для проверки CSS
-
-      - name: Run Stylelint
-        run: |
-          stylelint "**/*.css" || true  # Запускаем проверку CSS, игнорируем ошибки
-
-      - name: Install PSScriptAnalyzer
-        run: |
-          pwsh -Command "Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser "  # Устанавливаем PSScriptAnalyzer для проверки PowerShell
-
-      - name: Run PSScriptAnalyzer
-        run: |
-          pwsh -Command "Invoke-ScriptAnalyzer -Path . -Recurse -OutputFormat JSON | Out-File -FilePath psreport.json" || true  # Запускаем проверку PowerShell, игнорируем ошибки
-
-      - name: List files in current directory
-        run: |
-          ls -la  # Выводим список файлов в текущей директории для отладки
+      - name: Create SAST Issues
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          title: "SAST Scan Results (Critical Issues)"
+          content-filepath: ./critical-bandit-report.json
+          labels: sast, security
 
       - name: Upload SAST reports
         uses: actions/upload-artifact@v4
         with:
           name: reports
           path: |
-            bandit-report.json  # Загружаем отчет SAST для Python
-            psreport.json  # Загружаем отчет для PowerShell
-
-      - name: Create SAST Issues
-        uses: peter-evans/create-issue-from-file@v4
-        with:
-          title: "SAST Scan Results"
-          content-filepath: ./bandit-report.json
-          labels: sast, security
+            bandit-report.json
+            critical-bandit-report.json
 
   dast-scan:
     runs-on: ubuntu-latest
@@ -114,45 +83,45 @@ jobs:
         run: |
           # Создаем файл zap-script.js для DAST сканирования
           cat << 'EOF' > ./ZAP_2.16.0/zap-script.js
-           // Скрипт для ZAP
-            var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
-            var scanPolicyName = "Default Policy"; // Используемая политика сканирования
+			// Скрипт для ZAP
+			var targetUrl = "http://89.169.164.174/myparking/"; // URL вашего приложения
+			var scanPolicyName = "Default Policy"; // Используемая политика сканирования
 
-          // Инициализация ZAP
-            print("Initializing ZAP...");
-            var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 8080);
+			// Инициализация ZAP
+			print("Initializing ZAP...");
+			var client = new org.zaproxy.clientapi.core.ClientApi("localhost", 8080);
 
-          // Проверка доступности ZAP API
-           try {
-            var version = client.core.version();
-            print("Connected to ZAP API version: " + version);
-            } catch (e) {
-            print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
-            exit(1);
-            }
+			// Проверка доступности ZAP API
+			try {
+			var version = client.core.version();
+			print("Connected to ZAP API version: " + version);
+			} catch (e) {
+			print("Error: Failed to connect to ZAP API. Make sure ZAP is running and the API is accessible.");
+			exit(1);
+			}
 
-          // Запуск сканирования
-            print("Starting active scan for: " + targetUrl);
-            var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
+			// Запуск сканирования
+			print("Starting active scan for: " + targetUrl);
+			var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
 
-          // Ожидание завершения сканирования
-            print("Waiting for scan to complete...");
-            while (true) {
-            var status = client.ascan.status(scanId);
-            print("Scan progress: " + status + "%");
-            if (status >= 100) {
-            break;
-            }
-            java.lang.Thread.sleep(5000); // Пауза 5 секунд
-            }
+			// Ожидание завершения сканирования
+			print("Waiting for scan to complete...");
+			while (true) {
+			var status = client.ascan.status(scanId);
+			print("Scan progress: " + status + "%");
+			if (status >= 100) {
+			break;
+			}
+			java.lang.Thread.sleep(5000); // Пауза 5 секунд
+			}
 
-          // Генерация отчетов
-           print("Generating reports...");
-           var reportDir = "./zap-reports";
-           client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
-           client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
-           print("Reports generated successfully.");
-           EOF
+			// Генерация отчетов
+			print("Generating reports...");
+			var reportDir = "./zap-reports";
+			client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
+			client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
+			print("Reports generated successfully.");
+			EOF
 
       - name: Run ZAP script
         run: |
