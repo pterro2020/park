@@ -74,7 +74,24 @@ jobs:
             echo "Error: ZAP download failed."
             exit 1
           fi
+          
+      - name: Grant permissions and clean up processes using ZAP directory
+        run: |
+          # Даем права на чтение, запись и выполнение для папки ZAP_2.15.0
+          chmod -R 755 ./ZAP_2.15.0
 
+          # Ищем процессы, использующие папку ZAP_2.15.0, и завершаем их
+          if command -v fuser &> /dev/null; then
+            # Используем fuser для поиска процессов
+            fuser -k ./ZAP_2.15.0/* || true  # Завершаем процессы, использующие файлы в папке
+          elif command -v lsof &> /dev/null; then
+            # Используем lsof для поиска процессов
+            lsof +D ./ZAP_2.15.0 | awk '{print $2}' | uniq | xargs kill -9 || true  # Завершаем процессы
+          else
+            echo "Neither fuser nor lsof is installed. Skipping process cleanup."
+          fi
+
+          echo "Permissions granted and processes cleaned up for ZAP directory."
       - name: Create reports directory
         run: |
           mkdir -p zap-reports  # Создаем директорию для отчетов ZAP
