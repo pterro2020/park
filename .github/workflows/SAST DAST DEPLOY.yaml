@@ -135,7 +135,12 @@ jobs:
           else
             echo "Port ${{ env.ZAP_PORT }} is free."
           fi
-
+     
+      - name: Debug All Ports
+        run: |
+          echo "All listening ports:"
+          netstat -tuln
+     
       - name: Generate a random free port for ZAP
         run: |
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
@@ -156,7 +161,7 @@ jobs:
       - name: Start ZAP in background with unique port and API key
         run: |
           "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=${{ env.ZAP_API_KEY }} -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
-          sleep 30  # Даем время ZAP на инициализацию
+          sleep 60  # Даем время ZAP на инициализацию
 
       - name: Save ZAP API key to file
         run: |
