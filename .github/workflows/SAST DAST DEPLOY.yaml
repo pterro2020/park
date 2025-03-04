@@ -184,7 +184,7 @@ jobs:
             - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
             - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
           labels: dast, security
-          assignees: ["${{ github.actor }}"]
+          assignees: "${{ github.actor }}"
 
       - name: Clean up ZAP directories
         run: |
