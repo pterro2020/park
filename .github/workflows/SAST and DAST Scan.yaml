@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'  # Устанавливаем нужную версию Python
+          python-version: '3.12'  # Устанавливаем нужную версию Python
 
       - name: Install Bandit
         run: |
