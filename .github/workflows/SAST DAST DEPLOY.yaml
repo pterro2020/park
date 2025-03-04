@@ -53,6 +53,7 @@ jobs:
           jq -r '.[] | "## Issue: \(.test_id) - \(.issue_text)\n\n- Severity: \(.issue_severity)\n- Confidence: \(.issue_confidence)\n- Filename: \(.filename)\n- Line: \(.line_number)\n\n"' critical-bandit-report.json >> sast-report.md
 
       - name: Upload SAST reports as artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sast-reports
@@ -62,6 +63,7 @@ jobs:
             sast-report.md
 
       - name: Create SAST Issue with Markdown report
+        if: always()
         uses: actions/github-script@v6
         with:
           script: |
@@ -126,8 +128,19 @@ jobs:
 
       - name: Generate a random free port for ZAP
         run: |
+          # Генерируем случайный свободный порт
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
           echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
+
+      - name: Check if the generated port is free
+        run: |
+          # Проверяем, свободен ли порт
+          if netstat -tuln | grep ":${{ env.ZAP_PORT }}"; then
+            echo "Error: Port ${{ env.ZAP_PORT }} is already in use."
+            exit 1
+          else
+            echo "Port ${{ env.ZAP_PORT }} is free."
+          fi
 
       - name: Set unique ZAP home directories
         run: |
@@ -180,6 +193,7 @@ jobs:
           jq -r '.sites[].alerts[] | select(.riskdesc == "High") | "## Alert: \(.name)\n\n- Risk: \(.riskdesc)\n- Description: \(.desc)\n- URL: \(.url)\n- Solution: \(.solution)\n\n"' "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" >> dast-report.md
 
       - name: Upload DAST reports as artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dast-reports
@@ -188,6 +202,7 @@ jobs:
             dast-report.md
 
       - name: Create DAST Issue with Markdown report
+        if: always()
         uses: actions/github-script@v6
         with:
           script: |
@@ -218,6 +233,7 @@ jobs:
             });
 
       - name: Clean up ZAP directories
+        if: always()
         run: |
           rm -rf "$ZAP_HOME"
           rm -rf "$DAEMON_ZAP_HOME"
