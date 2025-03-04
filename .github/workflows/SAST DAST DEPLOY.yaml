@@ -123,8 +123,16 @@ jobs:
 
       - name: Kill any existing ZAP processes
         run: |
-          # Убиваем все существующие процессы ZAP, чтобы избежать конфликта с использованием $ZAP_HOME
+          # Убиваем все существующие процессы ZAP
           pkill -f "zap.sh" || true
+          sleep 5  # Ждем 5 секунд для завершения процессов
+
+      - name: Clean up ZAP home directory
+        run: |
+          # Очищаем содержимое домашней директории ZAP
+          if [ -d "$ZAP_HOME" ]; then
+            rm -rf "$ZAP_HOME/*"
+          fi
 
       - name: Run ZAP script
         run: |
