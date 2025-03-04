@@ -121,7 +121,8 @@ jobs:
 
       - name: Create ZAP script for DAST
         run: |
-          cat << 'EOF' > "$ZAP_HOME/ZAP_2.16.0/zap-script.js"
+          # Создаем файл zap-script.js в директории $DAEMON_ZAP_HOME
+          cat << 'EOF' > "$DAEMON_ZAP_HOME/zap-script.js"
           var targetUrl = "http://localhost:5000/";
           var scanPolicyName = "Default Policy";
 
@@ -154,7 +155,7 @@ jobs:
       - name: Run ZAP script with unique port and directory
         run: |
           # Запускаем скрипт ZAP с уникальным портом и директорией
-          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$ZAP_HOME/ZAP_2.16.0/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
+          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
