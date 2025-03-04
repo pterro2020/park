@@ -67,67 +67,31 @@ jobs:
           python -m flask run --host=0.0.0.0 --port=5000 &
           sleep 10
 
-      - name: Set unique ZAP home directory
+      - name: Set unique ZAP home directories
         run: |
-          export ZAP_HOME=$(mktemp -d)
-          echo "ZAP_HOME=$ZAP_HOME" >> $GITHUB_ENV
-
-      - name: Download and inspect ZAP archive
-        run: |
-          # Скачиваем архив ZAP
-          wget -qO "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
-          # Проверяем содержимое архива
-          tar tvf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz"
-          if ! tar tf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" | grep -q "ZAP_2.16.0/zap.sh"; then
-            echo "Error: 'zap.sh' not found in the expected location in the ZAP archive."
-            exit 1
-          fi
-
-      - name: Extract ZAP
-        run: |
-          # Распаковываем архив ZAP
-          tar xzf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" -C "$ZAP_HOME"
-          # Проверяем, что файл zap.sh существует в поддиректории ZAP_2.16.0
-          if [ ! -f "$ZAP_HOME/ZAP_2.16.0/zap.sh" ]; then
-            echo "Error: Failed to extract 'zap.sh'. Directory structure:"
-            ls -la "$ZAP_HOME"
-            exit 1
-          fi
-          # Сохраняем путь к ZAP в переменную окружения
-          export ZAP_PATH="$ZAP_HOME/ZAP_2.16.0"
-          echo "ZAP_PATH=$ZAP_PATH" >> $GITHUB_ENV
-
-      - name: Create reports directory
-        run: mkdir -p "$ZAP_HOME/zap-reports"
-
-      - name: Kill any existing ZAP processes
-        run: |
-          pkill -f "zap.sh" || true
-          sleep 10
-
-      - name: Clean up all ZAP directories
-        run: |
-          find /tmp -maxdepth 1 -type d -name "tmp.*" -exec rm -rf {} \;
+          export DAEMON_ZAP_HOME=$(mktemp -d)
+          echo "DAEMON_ZAP_HOME=$DAEMON_ZAP_HOME" >> $GITHUB_ENV
+          export SCRIPT_ZAP_HOME=$(mktemp -d)
+          echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
       - name: Generate a random free port for ZAP
         run: |
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
           echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
 
-      - name: Create a new unique ZAP home directory for daemon mode
+      - name: Start ZAP in background with Docker
         run: |
-          export DAEMON_ZAP_HOME=$(mktemp -d)
-          echo "DAEMON_ZAP_HOME=$DAEMON_ZAP_HOME" >> $GITHUB_ENV
+          docker run --rm -d \
+            -u zap \
+            -p ${{ env.ZAP_PORT }}:8080 \
+            -v "$DAEMON_ZAP_HOME":/home/zap/.ZAP_D/ \
+            --name zap-daemon \
+            owasp/zap2docker-stable \
+            zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
 
-      - name: Start ZAP in background with unique port
+      - name: Wait for ZAP to start
         run: |
-          "$ZAP_PATH/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$DAEMON_ZAP_HOME" &
           sleep 30
-
-      - name: Create a new unique ZAP home directory for script mode
-        run: |
-          export SCRIPT_ZAP_HOME=$(mktemp -d)
-          echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
       - name: Create ZAP script for DAST
         run: |
@@ -161,9 +125,13 @@ jobs:
           client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
           EOF
 
-      - name: Run ZAP script with unique port and directory
+      - name: Run ZAP script with Docker
         run: |
-          "$ZAP_PATH/zap.sh" -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
+          docker exec zap-daemon zap.sh -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME"
+
+      - name: Stop ZAP container
+        run: |
+          docker stop zap-daemon || true
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
@@ -180,7 +148,6 @@ jobs:
 
       - name: Clean up ZAP directories
         run: |
-          rm -rf "$ZAP_HOME"
           rm -rf "$DAEMON_ZAP_HOME"
           rm -rf "$SCRIPT_ZAP_HOME"
 
