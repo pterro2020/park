@@ -44,23 +44,24 @@ jobs:
         run: |
           jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
 
-      - name: Install ESLint for JavaScript SAST
+      - name: Generate SAST Report in Markdown
         run: |
-          npm install eslint -g
+          echo "# SAST Scan Results (Critical Issues)" > sast-report.md
+          echo "" >> sast-report.md
+          echo "Below are the critical issues found during the SAST scan:" >> sast-report.md
+          echo "" >> sast-report.md
+          jq -r '.[] | "## Issue: \(.test_id) - \(.issue_text)\n\n- Severity: \(.issue_severity)\n- Confidence: \(.issue_confidence)\n- Filename: \(.filename)\n- Line: \(.line_number)\n\n"' critical-bandit-report.json >> sast-report.md
 
-      - name: Run ESLint for JavaScript
-        run: |
-          eslint --format=json --output-file=eslint-report.json static/js/*.js || true
+      - name: Upload SAST reports as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-reports
+          path: |
+            bandit-report.json
+            critical-bandit-report.json
+            sast-report.md
 
-      - name: Install Stylelint for CSS SAST
-        run: |
-          npm install stylelint -g
-
-      - name: Run Stylelint for CSS
-        run: |
-          stylelint --format=json --output-file=stylelint-report.json static/css/*.css || true
-
-      - name: Create SAST Issue
+      - name: Create SAST Issue with Markdown report
         uses: actions/github-script@v6
         with:
           script: |
@@ -68,9 +69,11 @@ jobs:
             const issueBody = `
               Below are the critical issues found during the SAST scan:
 
-              - Bandit Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-              - ESLint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-              - Stylelint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              Full report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+
+              \`\`\`markdown
+              $(fs.readFileSync('sast-report.md').toString())
+              \`\`\`
             `;
             const labels = ["sast", "security"];
             const assignees = [context.payload.sender.login];
@@ -87,16 +90,6 @@ jobs:
               repo: context.repo.repo,
               ...issue
             });
-
-      - name: Upload SAST reports as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sast-reports
-          path: |
-            bandit-report.json
-            critical-bandit-report.json
-            eslint-report.json
-            stylelint-report.json
 
   dast-scan:
     runs-on: ubuntu-latest
@@ -115,6 +108,17 @@ jobs:
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
 
+      - name: Download and extract ZAP
+        run: |
+          export ZAP_HOME=$(mktemp -d)
+          echo "ZAP_HOME=$ZAP_HOME" >> $GITHUB_ENV
+          wget -qO "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
+          tar xzf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" -C "$ZAP_HOME" --strip-components=1
+          if [ ! -f "$ZAP_HOME/zap.sh" ]; then
+            echo "Error: Failed to extract ZAP."
+            exit 1
+          fi
+
       - name: Generate a random free port for ZAP
         run: |
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
@@ -127,18 +131,9 @@ jobs:
           export SCRIPT_ZAP_HOME=$(mktemp -d)
           echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
-      - name: Start ZAP in background with Docker
+      - name: Start ZAP in background
         run: |
-          docker run --rm -d \
-            -u zap \
-            -p ${{ env.ZAP_PORT }}:8080 \
-            -v "$DAEMON_ZAP_HOME":/home/zap/.ZAP_D/ \
-            --name zap-daemon \
-            owasp/zap2docker-stable \
-            zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
-
-      - name: Wait for ZAP to start
-        run: |
+          "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$DAEMON_ZAP_HOME" &
           sleep 30
 
       - name: Create ZAP script for DAST
@@ -173,21 +168,32 @@ jobs:
           client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
           EOF
 
-      - name: Run ZAP script with Docker
+      - name: Run ZAP script
         run: |
-          docker exec zap-daemon zap.sh -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME"
+          "$ZAP_HOME/zap.sh" -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
 
-      - name: Stop ZAP container
+      - name: Stop ZAP process
         run: |
-          docker stop zap-daemon || true
+          pkill -f "zap.sh" || true
+
+      - name: Generate DAST Report in Markdown
+        run: |
+          mkdir -p "${{ env.SCRIPT_ZAP_HOME }}/zap-reports"
+          echo "# DAST Scan Results" > dast-report.md
+          echo "" >> dast-report.md
+          echo "Below are the critical vulnerabilities found during the DAST scan:" >> dast-report.md
+          echo "" >> dast-report.md
+          jq -r '.sites[].alerts[] | "## Alert: \(.name)\n\n- Risk: \(.riskdesc)\n- Description: \(.desc)\n- URL: \(.url)\n- Solution: \(.solution)\n\n"' "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" >> dast-report.md
 
       - name: Upload DAST reports as artifact
         uses: actions/upload-artifact@v4
         with:
           name: dast-reports
-          path: ${{ env.SCRIPT_ZAP_HOME }}/zap-reports
+          path: |
+            ${{ env.SCRIPT_ZAP_HOME }}/zap-reports
+            dast-report.md
 
-      - name: Create DAST Issue with report links
+      - name: Create DAST Issue with Markdown report
         uses: actions/github-script@v6
         with:
           script: |
@@ -195,8 +201,11 @@ jobs:
             const issueBody = `
               The DAST scan has been completed. Below are the results:
 
-              - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-              - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              Full report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+
+              \`\`\`markdown
+              $(fs.readFileSync('dast-report.md').toString())
+              \`\`\`
             `;
             const labels = ["dast", "security"];
             const assignees = [context.payload.sender.login];
@@ -216,5 +225,6 @@ jobs:
 
       - name: Clean up ZAP directories
         run: |
+          rm -rf "$ZAP_HOME"
           rm -rf "$DAEMON_ZAP_HOME"
           rm -rf "$SCRIPT_ZAP_HOME"
