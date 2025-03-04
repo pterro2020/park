@@ -135,16 +135,28 @@ jobs:
           else
             echo "Port ${{ env.ZAP_PORT }} is free."
           fi
-     
-      - name: Debug All Ports
+
+      - name: Generate a random free port for ZAP with retries
         run: |
-          echo "All listening ports:"
-          netstat -tuln
-     
-      - name: Generate a random free port for ZAP
-        run: |
-          export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
-          echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
+          # Генерируем случайный свободный порт с повторными попытками
+          export ZAP_PORT=
+          for i in {1..5}; do
+            export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+            if ! nc -zv localhost $ZAP_PORT &> /dev/null && ! ss -tuln | grep ":$ZAP_PORT"; then
+              echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
+              echo "Port $ZAP_PORT is free."
+              break
+            else
+              echo "Port $ZAP_PORT is still in use. Retrying ($i/5)..."
+              sleep 5
+            fi
+          done
+
+          # Если порт не найден после 5 попыток, завершаем выполнение
+          if [ -z "${{ env.ZAP_PORT }}" ]; then
+            echo "Error: Unable to find a free port for ZAP after 5 attempts."
+            exit 1
+          fi
 
       - name: Generate a random API key for ZAP
         run: |
