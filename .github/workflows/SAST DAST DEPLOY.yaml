@@ -61,18 +61,32 @@ jobs:
           stylelint --format=json --output-file=stylelint-report.json static/css/*.css || true
 
       - name: Create SAST Issue
-        uses: peter-evans/create-or-update-issue@v2
+        uses: actions/github-script@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "SAST Scan Results (Critical Issues)"
-          body: |
-            Below are the critical issues found during the SAST scan:
+          script: |
+            const issueTitle = "SAST Scan Results (Critical Issues)";
+            const issueBody = `
+              Below are the critical issues found during the SAST scan:
 
-            - Bandit Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-            - ESLint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-            - Stylelint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-          labels: sast, security
-          assignees: "${{ github.actor }}"
+              - Bandit Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              - ESLint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              - Stylelint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+            `;
+            const labels = ["sast", "security"];
+            const assignees = [context.payload.sender.login];
+
+            const issue = {
+              title: issueTitle,
+              body: issueBody,
+              labels: labels,
+              assignees: assignees
+            };
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ...issue
+            });
 
       - name: Upload SAST reports as artifact
         uses: actions/upload-artifact@v4
@@ -174,17 +188,31 @@ jobs:
           path: ${{ env.SCRIPT_ZAP_HOME }}/zap-reports
 
       - name: Create DAST Issue with report links
-        uses: peter-evans/create-or-update-issue@v2
+        uses: actions/github-script@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: "DAST Scan Results"
-          body: |
-            The DAST scan has been completed. Below are the results:
+          script: |
+            const issueTitle = "DAST Scan Results";
+            const issueBody = `
+              The DAST scan has been completed. Below are the results:
 
-            - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-            - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-          labels: dast, security
-          assignees: "${{ github.actor }}"
+              - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+            `;
+            const labels = ["dast", "security"];
+            const assignees = [context.payload.sender.login];
+
+            const issue = {
+              title: issueTitle,
+              body: issueBody,
+              labels: labels,
+              assignees: assignees
+            };
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ...issue
+            });
 
       - name: Clean up ZAP directories
         run: |
