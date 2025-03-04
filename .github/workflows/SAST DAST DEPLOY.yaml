@@ -80,48 +80,44 @@ jobs:
             echo "Error: ZAP download failed."
             exit 1
           fi
+          # Сохраняем путь к ZAP в переменную окружения
+          export ZAP_PATH="$ZAP_HOME/ZAP_2.16.0"
+          echo "ZAP_PATH=$ZAP_PATH" >> $GITHUB_ENV
 
       - name: Create reports directory
         run: mkdir -p "$ZAP_HOME/zap-reports"
 
       - name: Kill any existing ZAP processes
         run: |
-          # Убиваем все существующие процессы ZAP
           pkill -f "zap.sh" || true
-          sleep 10  # Ждем 10 секунд для завершения процессов
+          sleep 10
 
       - name: Clean up all ZAP directories
         run: |
-          # Очищаем содержимое всех возможных домашних директорий ZAP
           find /tmp -maxdepth 1 -type d -name "tmp.*" -exec rm -rf {} \;
 
       - name: Generate a random free port for ZAP
         run: |
-          # Генерируем случайный свободный порт
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
           echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
 
       - name: Create a new unique ZAP home directory for daemon mode
         run: |
-          # Создаем новую уникальную директорию для фонового режима ZAP
           export DAEMON_ZAP_HOME=$(mktemp -d)
           echo "DAEMON_ZAP_HOME=$DAEMON_ZAP_HOME" >> $GITHUB_ENV
 
       - name: Start ZAP in background with unique port
         run: |
-          # Запускаем ZAP в фоновом режиме с уникальным портом
-          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$DAEMON_ZAP_HOME" &
+          "$ZAP_PATH/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$DAEMON_ZAP_HOME" &
           sleep 30
 
       - name: Create a new unique ZAP home directory for script mode
         run: |
-          # Создаем новую уникальную директорию для выполнения скрипта
           export SCRIPT_ZAP_HOME=$(mktemp -d)
           echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
       - name: Create ZAP script for DAST
         run: |
-          # Создаем файл zap-script.js в директории $DAEMON_ZAP_HOME
           cat << 'EOF' > "$DAEMON_ZAP_HOME/zap-script.js"
           var targetUrl = "http://localhost:5000/";
           var scanPolicyName = "Default Policy";
@@ -154,8 +150,7 @@ jobs:
 
       - name: Run ZAP script with unique port and directory
         run: |
-          # Запускаем скрипт ZAP с уникальным портом и директорией
-          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
+          "$ZAP_PATH/zap.sh" -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
