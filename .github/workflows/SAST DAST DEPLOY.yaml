@@ -87,7 +87,8 @@ jobs:
         run: |
           # Распаковываем архив ZAP
           mkdir -p "$ZAP_HOME/ZAP_2.16.0"
-          tar xzf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" -C "$ZAP_HOME/ZAP_2.16.0" --strip-components=1
+          tar xzf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" -C "$ZAP_HOME/ZAP_2.16.0" --strip-components=0
+          # Проверяем, что файл zap.sh существует
           if [ ! -f "$ZAP_HOME/ZAP_2.16.0/zap.sh" ]; then
             echo "Error: Failed to extract 'zap.sh'. Directory structure:"
             ls -la "$ZAP_HOME/ZAP_2.16.0"
