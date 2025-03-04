@@ -136,14 +136,20 @@ jobs:
             echo "Port ${{ env.ZAP_PORT }} is free."
           fi
 
-      - name: Reserve a random free port for ZAP
+      - name: Reserve a random free port for ZAP with socket binding
         run: |
-          # Генерируем случайный порт и резервируем его
+          # Генерируем случайный порт и резервируем его с помощью временного сокета
           export ZAP_PORT=
           for i in {1..5}; do
-            export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); port=s.getsockname()[1]; s.close(); print(port)')
+            # Создаем временный сокет для резервирования порта
+            python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); port=s.getsockname()[1]; print(port); open("/tmp/zap_port_reserved", "w").write(str(port)); s.close()' > /tmp/zap_port.txt
+
+            # Читаем зарезервированный порт из файла
+            export ZAP_PORT=$(cat /tmp/zap_port.txt)
+            echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
+
+            # Проверяем, свободен ли порт
             if ! nc -zv localhost $ZAP_PORT &> /dev/null && ! ss -tuln | grep ":$ZAP_PORT"; then
-              echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
               echo "Port $ZAP_PORT is reserved."
               break
             else
@@ -174,6 +180,16 @@ jobs:
         run: |
           "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=${{ env.ZAP_API_KEY }} -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
           sleep 60  # Даем время ZAP на инициализацию
+
+      - name: Check if ZAP started successfully
+        run: |
+          # Проверяем, успешно ли стартовал ZAP
+          if curl -s -o /dev/null -X GET "http://localhost:${{ env.ZAP_PORT }}/JSON/core/view/version" --header "X-ZAP-API-Key: ${{ env.ZAP_API_KEY }}"; then
+            echo "ZAP started successfully on port ${{ env.ZAP_PORT }}"
+          else
+            echo "Error: ZAP failed to start on port ${{ env.ZAP_PORT }}"
+            exit 1
+          fi
 
       - name: Save ZAP API key to file
         run: |
