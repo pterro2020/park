@@ -15,11 +15,11 @@ jobs:
     steps:
     # Шаг 1: Клонирование репозитория
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     # Шаг 2: Установка Node.js
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '16'
 
@@ -60,7 +60,7 @@ jobs:
 
     # Шаг 9: Сохранение результатов сканирования как артефакта
     - name: Upload scan results as artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: zap-scan-results
         path: zap_scan_results.md
