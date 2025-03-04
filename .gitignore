@@ -2,3 +2,6 @@
 **/.venv
 **/__pycache__
 **/StorageFiles
+**/.github/workflows/SAST DAST DEPLOY.yaml
+**/.github/workflows/SAST DAST Scan Deployment Django.yaml
+**/.github/workflows/
