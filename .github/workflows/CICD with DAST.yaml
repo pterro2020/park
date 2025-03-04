@@ -1,4 +1,4 @@
-name: Deploy and DAST with OWASP ZAP
+name: DAST Scanning with OWASP ZAP
 
 on:
   push:
@@ -9,97 +9,60 @@ on:
       - main
 
 jobs:
-  deploy-and-scan:
+  dast-scan:
     runs-on: ubuntu-latest
 
     steps:
-    # Шаг 1: Клонирование репозитория
-    - name: Checkout code
-      uses: actions/checkout@v4
+      # Шаг 1: Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # Шаг 2: Установка Node.js
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '16'
+      # Шаг 2: Установка Python и зависимостей Django
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-    # Шаг 3: Установка зависимостей
-    - name: Install dependencies
-      run: npm install
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r park/requirements.txt
 
-    # Шаг 4: Сборка проекта
-    - name: Build the project
-      run: npm run build
+      # Шаг 3: Запуск Django-приложения в фоновом режиме
+      - name: Start Django application
+        run: |
+          cd park
+          python manage.py migrate
+          nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
+          echo "Django application started on http://localhost:8000"
 
-    # Шаг 5: Запуск приложения
-    - name: Start the application
-      run: npm start &
-      env:
-        NODE_ENV: production
+      # Шаг 4: Установка OWASP ZAP
+      - name: Download and setup OWASP ZAP
+        run: |
+          wget https://github.com/zaproxy/zaproxy/releases/download/v2.12.0/ZAP_2.16.0_Linux.tar.gz -O zap.tar.gz
+          tar -xzf zap.tar.gz
+          mv ZAP_* zap
+          chmod +x zap/zap.sh
 
-    # Шаг 6: Ожидание запуска приложения
-    - name: Wait for application to start
-      run: sleep 10
+      # Шаг 5: Запуск сканирования OWASP ZAP
+      - name: Run OWASP ZAP Baseline Scan
+        run: |
+          ./zap/zap-baseline.py \
+            -t http://localhost:8000 \
+            -r zap_report.html \
+            -g zap_config.zap \
+            -l WARN \
+            -x zap.xml
 
-    # Шаг 7: Загрузка Docker-образа ZAP из GHCR
-    - name: Pull ZAP Docker image from GHCR
-      run: docker pull ghcr.io/zaproxy/zaproxy:stable
+      # Шаг 6: Преобразование HTML-отчета в Markdown
+      - name: Convert HTML report to Markdown
+        run: |
+          pandoc -f html -t markdown zap_report.html -o zap_report.md
+          cat zap_report.md
 
-    # Шаг 8: Запуск OWASP ZAP для DAST
-    - name: Run OWASP ZAP DAST Scan
-      uses: zaproxy/action-full-scan@v0.5.0
-      with:
-        target: 'http://localhost:8080'  # Укажите URL вашего приложения
-        format: 'md'  # Экспорт результатов в Markdown
-        output_file: 'zap_scan_results.md'  # Имя файла для результатов
-        docker_name: 'ghcr.io/zaproxy/zaproxy:stable'  # Используемый Docker-образ из GHCR
-        cmd_options: '-config api.disablekey=true'  # Отключение API-ключа
-
-    # Шаг 9: Сохранение результатов сканирования как артефакта
-    - name: Upload scan results as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: zap-scan-results
-        path: zap_scan_results.md
-
-    # Шаг 10: Вывод результатов сканирования в консоль (опционально)
-    - name: Display scan results
-      run: cat zap_scan_results.md
-
-    # Шаг 11: Создание Issue с результатами сканирования
-    - name: Create DAST Issue with Markdown report
-      if: always()
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const issueTitle = "DAST Scan Results";
-          const issueBody = `
-            The DAST scan has been completed. Below are the results:
-
-            Full report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-
-            \`\`\`markdown
-            $(fs.readFileSync('zap_scan_results.md').toString())
-            \`\`\`
-          `;
-          const labels = ["dast", "security"];
-          const assignees = [context.payload.sender.login];
-
-          const issue = {
-            title: issueTitle,
-            body: issueBody,
-            labels: labels,
-            assignees: assignees
-          };
-
-          github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            ...issue
-          });
-
-    # Шаг 12: Очистка временных директорий
-    - name: Clean up temporary directories
-      if: always()
-      run: |
-        rm -rf ./zap-reports
+      # Шаг 7: Публикация отчета
+      - name: Upload ZAP Report as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap_report.md
