@@ -62,7 +62,7 @@ jobs:
 
       # Шаг 7: Публикация отчета
       - name: Upload ZAP Report as Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: zap_report.md
