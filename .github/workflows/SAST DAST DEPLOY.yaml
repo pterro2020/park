@@ -128,19 +128,13 @@ jobs:
 
       - name: Generate a random free port for ZAP
         run: |
-          # Генерируем случайный свободный порт
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
           echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
 
-      - name: Check if the generated port is free
+      - name: Generate a random API key for ZAP
         run: |
-          # Проверяем, свободен ли порт
-          if netstat -tuln | grep ":${{ env.ZAP_PORT }}"; then
-            echo "Error: Port ${{ env.ZAP_PORT }} is already in use."
-            exit 1
-          else
-            echo "Port ${{ env.ZAP_PORT }} is free."
-          fi
+          export ZAP_API_KEY=$(openssl rand -hex 16)
+          echo "ZAP_API_KEY=$ZAP_API_KEY" >> $GITHUB_ENV
 
       - name: Set unique ZAP home directories
         run: |
@@ -149,16 +143,14 @@ jobs:
           export SCRIPT_ZAP_HOME=$(mktemp -d)
           echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
-      - name: Start ZAP in background with unique port
+      - name: Start ZAP in background with unique port and API key
         run: |
-          "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=$(openssl rand -hex 16) -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
-          sleep 30
+          "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=${{ env.ZAP_API_KEY }} -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
+          sleep 30  # Даем время ZAP на инициализацию
 
       - name: Save ZAP API key to file
         run: |
-          # Получаем ключ API и сохраняем его в файл
-          API_KEY=$("$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -apiKey "$(openssl rand -hex 16)")
-          echo "$API_KEY" > "$DAEMON_ZAP_HOME/api.key"
+          echo "${{ env.ZAP_API_KEY }}" > "$DAEMON_ZAP_HOME/api.key"
 
       - name: Create autorunzap.xml configuration file
         run: |
@@ -184,7 +176,6 @@ jobs:
 
       - name: Run DAST Scan using ZAP Command Line
         run: |
-          # Запускаем сканирование с использованием сохраненного ключа API
           API_KEY=$(cat "$DAEMON_ZAP_HOME/api.key")
           "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key="$API_KEY" -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
 
