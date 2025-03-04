@@ -125,34 +125,44 @@ jobs:
         run: |
           # Убиваем все существующие процессы ZAP
           pkill -f "zap.sh" || true
-          sleep 5  # Ждем 5 секунд для завершения процессов
+          sleep 10  # Ждем 10 секунд для завершения процессов
 
       - name: Clean up ZAP home directory
         run: |
-          # Очищаем содержимое домашней директории ZAP
+          # Очищаем содержимое домашней директории ZAP, включая файлы блокировки
           if [ -d "$ZAP_HOME" ]; then
-            rm -rf "$ZAP_HOME/*"
+            rm -rf "$ZAP_HOME/.zap.*"  # Удаляем файлы блокировки
+            rm -rf "$ZAP_HOME/*"       # Удаляем все остальные файлы
           fi
+
+      - name: Create a new unique ZAP home directory
+        run: |
+          # Создаем новую уникальную директорию для ZAP
+          export NEW_ZAP_HOME=$(mktemp -d)
+          echo "NEW_ZAP_HOME=$NEW_ZAP_HOME" >> $GITHUB_ENV
 
       - name: Run ZAP script
         run: |
-          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$ZAP_HOME/ZAP_2.16.0/zap-script.js" -dir "$ZAP_HOME"
+          # Запускаем ZAP с новой уникальной директорией
+          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$ZAP_HOME/ZAP_2.16.0/zap-script.js" -dir "$NEW_ZAP_HOME"
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
         with:
           name: zap-reports
-          path: ${{ env.ZAP_HOME }}/zap-reports
+          path: ${{ env.NEW_ZAP_HOME }}/zap-reports
 
       - name: Create DAST Issues
         uses: peter-evans/create-issue-from-file@v4
         with:
           title: "DAST Scan Results"
-          content-filepath: ${{ env.ZAP_HOME }}/zap-reports/zap-report.json
+          content-filepath: ${{ env.NEW_ZAP_HOME }}/zap-reports/zap-report.json
           labels: dast, security
 
-      - name: Clean up ZAP directory
-        run: rm -rf "$ZAP_HOME"
+      - name: Clean up ZAP directories
+        run: |
+          rm -rf "$ZAP_HOME"
+          rm -rf "$NEW_ZAP_HOME"
 
   deploy:
     runs-on: ubuntu-latest
