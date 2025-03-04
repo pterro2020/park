@@ -169,15 +169,14 @@ jobs:
       - name: Create DAST Issue with report links
         uses: peter-evans/create-or-update-issue@v2
         with:
-          title: "DAST Scan Results"
-          body: |
-            The DAST scan has been completed. Below are the results:
-
-            - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-            - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-          labels: dast, security
-            assignees: ["${{ github.actor }}"]
-
+         title: "DAST Scan Results"
+         body: |
+           The DAST scan has been completed. Below are the results:
+           - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+           - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+         labels: dast, security
+         assignees: [${{ github.actor }}]
+            
       - name: Clean up ZAP directories
         run: |
           rm -rf "$DAEMON_ZAP_HOME"
