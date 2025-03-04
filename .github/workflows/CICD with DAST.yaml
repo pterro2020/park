@@ -1,0 +1,61 @@
+name: CI/CD with DAST using OWASP ZAP
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build the project
+      run: npm run build
+
+    - name: Start the application
+      run: npm start &
+      env:
+        NODE_ENV: production
+
+    - name: Wait for application to start
+      run: sleep 10
+
+    - name: Run OWASP ZAP DAST Scan
+      uses: zaproxy/action-full-scan@v0.5.0
+      with:
+        target: 'http://localhost:3000'
+        rules_file_name: '.zap/rules.tsv'
+        context_file: '.zap/context.context'
+        docker_name: 'owasp/zap2docker-stable'
+        cmd_options: '-config api.disablekey=true'
+        format: 'md'  # Экспорт результатов в Markdown
+        output_file: 'zap_scan_results.md'  # Имя файла для результатов
+
+    - name: Save scan results as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: zap-scan-results
+        path: zap_scan_results.md
+
+    - name: Commit and push scan results
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add zap_scan_results.md
+        git commit -m "Add OWASP ZAP scan results"
+        git push
