@@ -110,60 +110,6 @@ jobs:
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
 
-      - name: Download and extract ZAP
-        run: |
-          export ZAP_HOME=$(mktemp -d)
-          echo "ZAP_HOME=$ZAP_HOME" >> $GITHUB_ENV
-          wget -qO "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
-          tar xzf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" -C "$ZAP_HOME" --strip-components=1
-          if [ ! -f "$ZAP_HOME/zap.sh" ]; then
-            echo "Error: Failed to extract ZAP."
-            exit 1
-          fi
-
-      - name: Kill any existing ZAP processes and free port
-        run: |
-          # Убиваем все процессы ZAP
-          pkill -f "zap.sh" || true
-          sleep 15
-
-          # Проверяем и освобождаем порт ${{ env.ZAP_PORT }}
-          if lsof -i :${{ env.ZAP_PORT }}; then
-            echo "Port ${{ env.ZAP_PORT }} is still in use. Killing processes..."
-            lsof -i :${{ env.ZAP_PORT }} | awk '{print $2}' | xargs kill -9 || true
-            sleep 15  # Даем время освободить порт
-          else
-            echo "Port ${{ env.ZAP_PORT }} is free."
-          fi
-
-      - name: Reserve a random free port for ZAP with socket binding
-        run: |
-          # Генерируем случайный порт и резервируем его с помощью временного сокета
-          export ZAP_PORT=
-          for i in {1..5}; do
-            # Создаем временный сокет для резервирования порта
-            python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); port=s.getsockname()[1]; print(port); open("/tmp/zap_port_reserved", "w").write(str(port)); s.close()' > /tmp/zap_port.txt
-
-            # Читаем зарезервированный порт из файла
-            export ZAP_PORT=$(cat /tmp/zap_port.txt)
-            echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
-
-            # Проверяем, свободен ли порт
-            if ! nc -zv localhost $ZAP_PORT &> /dev/null && ! ss -tuln | grep ":$ZAP_PORT"; then
-              echo "Port $ZAP_PORT is reserved."
-              break
-            else
-              echo "Port $ZAP_PORT is still in use. Retrying ($i/5)..."
-              sleep 5
-            fi
-          done
-
-          # Если порт не найден после 5 попыток, завершаем выполнение
-          if [ -z "${{ env.ZAP_PORT }}" ]; then
-            echo "Error: Unable to find a free port for ZAP after 5 attempts."
-            exit 1
-          fi
-
       - name: Generate a random API key for ZAP
         run: |
           export ZAP_API_KEY=$(openssl rand -hex 16)
@@ -176,55 +122,33 @@ jobs:
           export SCRIPT_ZAP_HOME=$(mktemp -d)
           echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
-      - name: Start ZAP in background with unique port and API key
+      - name: Start ZAP in background with Docker
         run: |
-          "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=${{ env.ZAP_API_KEY }} -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
-          sleep 60  # Даем время ZAP на инициализацию
+          docker run --rm -d \
+            -u zap \
+            -p ${{ env.ZAP_PORT }}:8080 \
+            -v "$DAEMON_ZAP_HOME":/home/zap/.ZAP_D/ \
+            --name zap-daemon \
+            owasp/zap2docker-stable \
+            zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.key=${{ env.ZAP_API_KEY }} -config api.disablekey=false
 
-      - name: Check if ZAP started successfully
+      - name: Wait for ZAP to start
         run: |
-          # Проверяем, успешно ли стартовал ZAP
-          if curl -s -o /dev/null -X GET "http://localhost:${{ env.ZAP_PORT }}/JSON/core/view/version" --header "X-ZAP-API-Key: ${{ env.ZAP_API_KEY }}"; then
-            echo "ZAP started successfully on port ${{ env.ZAP_PORT }}"
-          else
-            echo "Error: ZAP failed to start on port ${{ env.ZAP_PORT }}"
-            exit 1
-          fi
+          sleep 30  # Даем время ZAP на инициализацию
 
-      - name: Save ZAP API key to file
+      - name: Run DAST Scan using ZAP Command Line inside Docker
         run: |
-          echo "${{ env.ZAP_API_KEY }}" > "$DAEMON_ZAP_HOME/api.key"
+          docker exec zap-daemon zap-cli --zap-port 8080 --api-key ${{ env.ZAP_API_KEY }} quick-scan --self-contained --spider --active-scan http://localhost:8000
 
-      - name: Create autorunzap.xml configuration file
+      - name: Export ZAP reports from Docker container
         run: |
           mkdir -p "${{ env.SCRIPT_ZAP_HOME }}/zap-reports"
-          cat << 'EOF' > "$DAEMON_ZAP_HOME/autorunzap.xml"
-          <zap-automation>
-            <target>http://localhost:8000/</target>
-            <scan>
-              <policy>Default Policy</policy>
-              <active>true</active>
-              <spider>true</spider>
-              <report>
-                <format>html</format>
-                <filename>$SCRIPT_ZAP_HOME/zap-reports/zap-report.html</filename>
-              </report>
-              <report>
-                <format>json</format>
-                <filename>$SCRIPT_ZAP_HOME/zap-reports/zap-report.json</filename>
-              </report>
-            </scan>
-          </zap-automation>
-          EOF
+          docker exec zap-daemon zap-cli --zap-port 8080 --api-key ${{ env.ZAP_API_KEY }} report -o "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.html" -f html
+          docker exec zap-daemon zap-cli --zap-port 8080 --api-key ${{ env.ZAP_API_KEY }} report -o "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" -f json
 
-      - name: Run DAST Scan using ZAP Command Line
+      - name: Stop ZAP container
         run: |
-          API_KEY=$(cat "$DAEMON_ZAP_HOME/api.key")
-          "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key="$API_KEY" -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
-
-      - name: Stop ZAP process
-        run: |
-          pkill -f "zap.sh" || true
+          docker stop zap-daemon || true
 
       - name: Generate DAST Report in Markdown
         run: |
@@ -232,7 +156,7 @@ jobs:
           echo "" >> dast-report.md
           echo "Below are the critical vulnerabilities found during the DAST scan:" >> dast-report.md
           echo "" >> dast-report.md
-          jq -r '.sites[].alerts[] | select(.riskdesc == "High") | "## Alert: \(.name)\n\n- Risk: \(.riskdesc)\n- Description: \(.desc)\n- URL: \(.url)\n- Solution: \(.solution)\n\n"' "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" >> dast-report.md
+          jq -r '.alerts[] | select(.risk == "High") | "## Alert: \(.name)\n\n- Risk: \(.risk)\n- Description: \(.desc)\n- URL: \(.url)\n- Solution: \(.solution)\n\n"' "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" >> dast-report.md
 
       - name: Upload DAST reports as artifact
         if: always()
@@ -277,6 +201,5 @@ jobs:
       - name: Clean up ZAP directories
         if: always()
         run: |
-          rm -rf "$ZAP_HOME"
           rm -rf "$DAEMON_ZAP_HOME"
           rm -rf "$SCRIPT_ZAP_HOME"
