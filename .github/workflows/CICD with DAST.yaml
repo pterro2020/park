@@ -1,4 +1,4 @@
-name: CI/CD with DAST using OWASP ZAP
+name: Deploy and DAST with OWASP ZAP
 
 on:
   push:
@@ -9,53 +9,55 @@ on:
       - main
 
 jobs:
-  build:
+  deploy-and-scan:
     runs-on: ubuntu-latest
 
     steps:
+    # Шаг 1: Клонирование репозитория
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # Шаг 2: Установка Node.js
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '16'
 
+    # Шаг 3: Установка зависимостей
     - name: Install dependencies
       run: npm install
 
+    # Шаг 4: Сборка проекта
     - name: Build the project
       run: npm run build
 
+    # Шаг 5: Запуск приложения
     - name: Start the application
       run: npm start &
       env:
         NODE_ENV: production
 
+    # Шаг 6: Ожидание запуска приложения
     - name: Wait for application to start
       run: sleep 10
 
+    # Шаг 7: Запуск OWASP ZAP для DAST
     - name: Run OWASP ZAP DAST Scan
       uses: zaproxy/action-full-scan@v0.5.0
       with:
-        target: 'http://localhost:3000'
-        rules_file_name: '.zap/rules.tsv'
-        context_file: '.zap/context.context'
-        docker_name: 'owasp/zap2docker-stable'
-        cmd_options: '-config api.disablekey=true'
+        target: 'http://localhost:3000'  # Укажите URL вашего приложения
         format: 'md'  # Экспорт результатов в Markdown
         output_file: 'zap_scan_results.md'  # Имя файла для результатов
+        docker_name: 'owasp/zap2docker-stable'  # Используемый Docker-образ
+        cmd_options: '-config api.disablekey=true'  # Отключение API-ключа
 
-    - name: Save scan results as artifact
+    # Шаг 8: Сохранение результатов сканирования как артефакта
+    - name: Upload scan results as artifact
       uses: actions/upload-artifact@v3
       with:
         name: zap-scan-results
         path: zap_scan_results.md
 
-    - name: Commit and push scan results
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add zap_scan_results.md
-        git commit -m "Add OWASP ZAP scan results"
-        git push
+    # Шаг 9: Вывод результатов сканирования в консоль (опционально)
+    - name: Display scan results
+      run: cat zap_scan_results.md
