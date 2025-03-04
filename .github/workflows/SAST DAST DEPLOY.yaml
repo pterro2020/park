@@ -72,17 +72,29 @@ jobs:
           export ZAP_HOME=$(mktemp -d)
           echo "ZAP_HOME=$ZAP_HOME" >> $GITHUB_ENV
 
-      - name: Download and extract ZAP
+      - name: Download and inspect ZAP archive
         run: |
-          mkdir -p "$ZAP_HOME"
-          wget -qO- https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz | tar xz -C "$ZAP_HOME" --strip-components=1
-          if [ ! -f "$ZAP_HOME/zap.sh" ]; then
-            echo "Error: ZAP download or extraction failed. Directory structure:"
-            ls -la "$ZAP_HOME"
+          # Скачиваем архив ZAP
+          wget -qO "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz
+          # Проверяем содержимое архива
+          tar tvf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz"
+          if ! tar tf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" | grep -q "zap.sh"; then
+            echo "Error: 'zap.sh' not found in the ZAP archive."
+            exit 1
+          fi
+
+      - name: Extract ZAP
+        run: |
+          # Распаковываем архив ZAP
+          mkdir -p "$ZAP_HOME/ZAP_2.16.0"
+          tar xzf "$ZAP_HOME/ZAP_2.16.0_Linux.tar.gz" -C "$ZAP_HOME/ZAP_2.16.0" --strip-components=1
+          if [ ! -f "$ZAP_HOME/ZAP_2.16.0/zap.sh" ]; then
+            echo "Error: Failed to extract 'zap.sh'. Directory structure:"
+            ls -la "$ZAP_HOME/ZAP_2.16.0"
             exit 1
           fi
           # Сохраняем путь к ZAP в переменную окружения
-          export ZAP_PATH="$ZAP_HOME"
+          export ZAP_PATH="$ZAP_HOME/ZAP_2.16.0"
           echo "ZAP_PATH=$ZAP_PATH" >> $GITHUB_ENV
 
       - name: Create reports directory
