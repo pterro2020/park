@@ -127,14 +127,14 @@ jobs:
           export SCRIPT_ZAP_HOME=$(mktemp -d)
           echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
-      - name: Start ZAP in background with Docker from GitHub Registry
+      - name: Start ZAP in background with Docker
         run: |
           docker run --rm -d \
             -u zap \
             -p ${{ env.ZAP_PORT }}:8080 \
             -v "$DAEMON_ZAP_HOME":/home/zap/.ZAP_D/ \
             --name zap-daemon \
-            ghcr.io/zaproxy/zap-weekly:latest \
+            owasp/zap2docker-stable \
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
 
       - name: Wait for ZAP to start
