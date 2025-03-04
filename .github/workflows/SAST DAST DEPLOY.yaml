@@ -141,51 +141,31 @@ jobs:
           "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=$(openssl rand -hex 16) -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
           sleep 30
 
-      - name: Create ZAP script for DAST
+      - name: Create autorunzap.xml configuration file
         run: |
-          cat << 'EOF' > "$DAEMON_ZAP_HOME/zap-script.js"
-          var targetUrl = "http://localhost:8000/";
-          var scanPolicyName = "Default Policy";
-
-          // Генерация случайного ключа API
-          var apiKey = (function generateApiKey() {
-              var result = '';
-              var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-              for (var i = 0; i < 16; i++) {
-                  result += characters.charAt(Math.floor(Math.random() * characters.length));
-              }
-              return result;
-          })();
-
-          var client = new org.zaproxy.clientapi.core.ClientApi("localhost", ${{ env.ZAP_PORT }}, apiKey);
-
-          try {
-            var version = client.core.version();
-            print("Connected to ZAP API version: " + version);
-          } catch (e) {
-            print("Error: Failed to connect to ZAP API.");
-            exit(1);
-          }
-
-          var scanId = client.ascan.scan(targetUrl, null, null, null, null, scanPolicyName);
-
-          while (true) {
-            var status = client.ascan.status(scanId);
-            print("Scan progress: " + status + "%");
-            if (status >= 100) {
-              break;
-            }
-            java.lang.Thread.sleep(5000);
-          }
-
-          var reportDir = "$SCRIPT_ZAP_HOME/zap-reports";
-          client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
-          client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
+          mkdir -p "${{ env.SCRIPT_ZAP_HOME }}/zap-reports"
+          cat << 'EOF' > "$DAEMON_ZAP_HOME/autorunzap.xml"
+          <zap-automation>
+            <target>http://localhost:8000/</target>
+            <scan>
+              <policy>Default Policy</policy>
+              <active>true</active>
+              <spider>true</spider>
+              <report>
+                <format>html</format>
+                <filename>$SCRIPT_ZAP_HOME/zap-reports/zap-report.html</filename>
+              </report>
+              <report>
+                <format>json</format>
+                <filename>$SCRIPT_ZAP_HOME/zap-reports/zap-report.json</filename>
+              </report>
+            </scan>
+          </zap-automation>
           EOF
 
-      - name: Run ZAP script
+      - name: Run DAST Scan using ZAP Command Line
         run: |
-          "$ZAP_HOME/zap.sh" -cmd -script "$DAEMON_ZAP_HOME/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
+          "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key=$(cat "$DAEMON_ZAP_HOME/api.key") -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
 
       - name: Stop ZAP process
         run: |
@@ -193,7 +173,6 @@ jobs:
 
       - name: Generate DAST Report in Markdown
         run: |
-          mkdir -p "${{ env.SCRIPT_ZAP_HOME }}/zap-reports"
           echo "# DAST Scan Results" > dast-report.md
           echo "" >> dast-report.md
           echo "Below are the critical vulnerabilities found during the DAST scan:" >> dast-report.md
