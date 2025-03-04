@@ -61,7 +61,7 @@ jobs:
           stylelint --format=json --output-file=stylelint-report.json static/css/*.css || true
 
       - name: Create SAST Issue
-        uses: dawidd6/action-create-issue@v2
+        uses: peter-evans/create-or-update-issue@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "SAST Scan Results (Critical Issues)"
@@ -72,7 +72,7 @@ jobs:
             - ESLint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
             - Stylelint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
           labels: sast, security
-          assignees: "${{ github.actor }}"
+          assignees: ["${{ github.actor }}"]
 
       - name: Upload SAST reports as artifact
         uses: actions/upload-artifact@v4
@@ -174,7 +174,7 @@ jobs:
           path: ${{ env.SCRIPT_ZAP_HOME }}/zap-reports
 
       - name: Create DAST Issue with report links
-        uses: dawidd6/action-create-issue@v2
+        uses: peter-evans/create-or-update-issue@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "DAST Scan Results"
@@ -184,7 +184,7 @@ jobs:
             - HTML Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
             - JSON Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
           labels: dast, security
-          assignees: "${{ github.actor }}"
+          assignees: ["${{ github.actor }}"]
 
       - name: Clean up ZAP directories
         run: |
