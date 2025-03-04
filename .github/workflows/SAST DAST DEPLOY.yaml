@@ -119,6 +119,11 @@ jobs:
             exit 1
           fi
 
+      - name: Kill any existing ZAP processes
+        run: |
+          pkill -f "zap.sh" || true
+          sleep 10
+
       - name: Generate a random free port for ZAP
         run: |
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
@@ -131,9 +136,9 @@ jobs:
           export SCRIPT_ZAP_HOME=$(mktemp -d)
           echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
-      - name: Start ZAP in background
+      - name: Start ZAP in background with unique port
         run: |
-          "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$DAEMON_ZAP_HOME" &
+          "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=$(openssl rand -hex 16) -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
           sleep 30
 
       - name: Create ZAP script for DAST
@@ -142,7 +147,17 @@ jobs:
           var targetUrl = "http://localhost:8000/";
           var scanPolicyName = "Default Policy";
 
-          var client = new org.zaproxy.clientapi.core.ClientApi("localhost", ${{ env.ZAP_PORT }});
+          // Генерация случайного ключа API
+          var apiKey = (function generateApiKey() {
+              var result = '';
+              var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+              for (var i = 0; i < 16; i++) {
+                  result += characters.charAt(Math.floor(Math.random() * characters.length));
+              }
+              return result;
+          })();
+
+          var client = new org.zaproxy.clientapi.core.ClientApi("localhost", ${{ env.ZAP_PORT }}, apiKey);
 
           try {
             var version = client.core.version();
@@ -183,7 +198,7 @@ jobs:
           echo "" >> dast-report.md
           echo "Below are the critical vulnerabilities found during the DAST scan:" >> dast-report.md
           echo "" >> dast-report.md
-          jq -r '.sites[].alerts[] | "## Alert: \(.name)\n\n- Risk: \(.riskdesc)\n- Description: \(.desc)\n- URL: \(.url)\n- Solution: \(.solution)\n\n"' "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" >> dast-report.md
+          jq -r '.sites[].alerts[] | select(.riskdesc == "High") | "## Alert: \(.name)\n\n- Risk: \(.riskdesc)\n- Description: \(.desc)\n- URL: \(.url)\n- Solution: \(.solution)\n\n"' "${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json" >> dast-report.md
 
       - name: Upload DAST reports as artifact
         uses: actions/upload-artifact@v4
