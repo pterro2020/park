@@ -72,7 +72,7 @@ jobs:
             - ESLint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
             - Stylelint Report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
           labels: sast, security
-          assignees: ["${{ github.actor }}"]
+          assignees: "${{ github.actor }}"
 
       - name: Upload SAST reports as artifact
         uses: actions/upload-artifact@v4
