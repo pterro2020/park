@@ -125,26 +125,26 @@ jobs:
         run: |
           # Убиваем все процессы ZAP
           pkill -f "zap.sh" || true
-          sleep 10
+          sleep 15
 
-          # Проверяем, есть ли процессы, использующие порт ${{ env.ZAP_PORT }}
+          # Проверяем и освобождаем порт ${{ env.ZAP_PORT }}
           if lsof -i :${{ env.ZAP_PORT }}; then
             echo "Port ${{ env.ZAP_PORT }} is still in use. Killing processes..."
             lsof -i :${{ env.ZAP_PORT }} | awk '{print $2}' | xargs kill -9 || true
-            sleep 10  # Даем время освободить порт
+            sleep 15  # Даем время освободить порт
           else
             echo "Port ${{ env.ZAP_PORT }} is free."
           fi
 
-      - name: Generate a random free port for ZAP with retries
+      - name: Reserve a random free port for ZAP
         run: |
-          # Генерируем случайный свободный порт с повторными попытками
+          # Генерируем случайный порт и резервируем его
           export ZAP_PORT=
           for i in {1..5}; do
-            export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+            export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); port=s.getsockname()[1]; s.close(); print(port)')
             if ! nc -zv localhost $ZAP_PORT &> /dev/null && ! ss -tuln | grep ":$ZAP_PORT"; then
               echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
-              echo "Port $ZAP_PORT is free."
+              echo "Port $ZAP_PORT is reserved."
               break
             else
               echo "Port $ZAP_PORT is still in use. Retrying ($i/5)..."
