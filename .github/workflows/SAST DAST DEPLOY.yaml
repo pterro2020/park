@@ -90,19 +90,10 @@ jobs:
           pkill -f "zap.sh" || true
           sleep 10  # Ждем 10 секунд для завершения процессов
 
-      - name: Clean up ZAP home directory
+      - name: Clean up all ZAP directories
         run: |
-          # Очищаем содержимое домашней директории ZAP, включая файлы блокировки
-          if [ -d "$ZAP_HOME" ]; then
-            rm -rf "$ZAP_HOME/.zap.*"  # Удаляем файлы блокировки
-            rm -rf "$ZAP_HOME/*"       # Удаляем все остальные файлы
-          fi
-
-      - name: Create a new unique ZAP home directory
-        run: |
-          # Создаем новую уникальную директорию для ZAP
-          export NEW_ZAP_HOME=$(mktemp -d)
-          echo "NEW_ZAP_HOME=$NEW_ZAP_HOME" >> $GITHUB_ENV
+          # Очищаем содержимое всех возможных домашних директорий ZAP
+          find /tmp -maxdepth 1 -type d -name "tmp.*" -exec rm -rf {} \;
 
       - name: Generate a random free port for ZAP
         run: |
@@ -110,11 +101,23 @@ jobs:
           export ZAP_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
           echo "ZAP_PORT=$ZAP_PORT" >> $GITHUB_ENV
 
+      - name: Create a new unique ZAP home directory for daemon mode
+        run: |
+          # Создаем новую уникальную директорию для фонового режима ZAP
+          export DAEMON_ZAP_HOME=$(mktemp -d)
+          echo "DAEMON_ZAP_HOME=$DAEMON_ZAP_HOME" >> $GITHUB_ENV
+
       - name: Start ZAP in background with unique port
         run: |
-          # Запускаем ZAP с уникальным портом и новой директорией
-          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$NEW_ZAP_HOME" &
+          # Запускаем ZAP в фоновом режиме с уникальным портом
+          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.disablekey=true -dir "$DAEMON_ZAP_HOME" &
           sleep 30
+
+      - name: Create a new unique ZAP home directory for script mode
+        run: |
+          # Создаем новую уникальную директорию для выполнения скрипта
+          export SCRIPT_ZAP_HOME=$(mktemp -d)
+          echo "SCRIPT_ZAP_HOME=$SCRIPT_ZAP_HOME" >> $GITHUB_ENV
 
       - name: Create ZAP script for DAST
         run: |
@@ -143,33 +146,34 @@ jobs:
             java.lang.Thread.sleep(5000);
           }
 
-          var reportDir = "$NEW_ZAP_HOME/zap-reports";
+          var reportDir = "$SCRIPT_ZAP_HOME/zap-reports";
           client.reports.generate(targetUrl, "traditional-html", null, reportDir + "/zap-report.html", null, null, null, null, null);
           client.reports.generate(targetUrl, "json", null, reportDir + "/zap-report.json", null, null, null, null, null);
           EOF
 
-      - name: Run ZAP script with unique port
+      - name: Run ZAP script with unique port and directory
         run: |
-          # Запускаем скрипт ZAP с уникальным портом
-          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$ZAP_HOME/ZAP_2.16.0/zap-script.js" -dir "$NEW_ZAP_HOME" -port ${{ env.ZAP_PORT }}
+          # Запускаем скрипт ZAP с уникальным портом и директорией
+          "$ZAP_HOME/ZAP_2.16.0/zap.sh" -cmd -script "$ZAP_HOME/ZAP_2.16.0/zap-script.js" -dir "$SCRIPT_ZAP_HOME" -port ${{ env.ZAP_PORT }}
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
         with:
           name: zap-reports
-          path: ${{ env.NEW_ZAP_HOME }}/zap-reports
+          path: ${{ env.SCRIPT_ZAP_HOME }}/zap-reports
 
       - name: Create DAST Issues
         uses: peter-evans/create-issue-from-file@v4
         with:
           title: "DAST Scan Results"
-          content-filepath: ${{ env.NEW_ZAP_HOME }}/zap-reports/zap-report.json
+          content-filepath: ${{ env.SCRIPT_ZAP_HOME }}/zap-reports/zap-report.json
           labels: dast, security
 
       - name: Clean up ZAP directories
         run: |
           rm -rf "$ZAP_HOME"
-          rm -rf "$NEW_ZAP_HOME"
+          rm -rf "$DAEMON_ZAP_HOME"
+          rm -rf "$SCRIPT_ZAP_HOME"
 
   deploy:
     runs-on: ubuntu-latest
