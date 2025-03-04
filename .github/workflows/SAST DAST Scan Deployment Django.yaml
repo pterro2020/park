@@ -1,4 +1,4 @@
-name: SAST and DAST Scan with Deployment for Django Project
+name: SAST DAST with Deploy Django
 
 on:
   push:
