@@ -1,4 +1,4 @@
-name: SAST and DAST Scan
+name: SAST and DAST Scan Remote Server
 
 on:
   push:
