@@ -121,10 +121,20 @@ jobs:
             exit 1
           fi
 
-      - name: Kill any existing ZAP processes
+      - name: Kill any existing ZAP processes and free port
         run: |
+          # Убиваем все процессы ZAP
           pkill -f "zap.sh" || true
           sleep 10
+
+          # Проверяем, есть ли процессы, использующие порт ${{ env.ZAP_PORT }}
+          if lsof -i :${{ env.ZAP_PORT }}; then
+            echo "Port ${{ env.ZAP_PORT }} is still in use. Killing processes..."
+            lsof -i :${{ env.ZAP_PORT }} | awk '{print $2}' | xargs kill -9 || true
+            sleep 10  # Даем время освободить порт
+          else
+            echo "Port ${{ env.ZAP_PORT }} is free."
+          fi
 
       - name: Generate a random free port for ZAP
         run: |
@@ -178,11 +188,7 @@ jobs:
         run: |
           API_KEY=$(cat "$DAEMON_ZAP_HOME/api.key")
           "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key="$API_KEY" -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
-      
-      - name: Check ZAP Status
-        run: |
-          curl -s -X GET "http://localhost:${{ env.ZAP_PORT }}/JSON/core/view/version" --header "X-ZAP-API-Key: ${{ env.ZAP_API_KEY }}" || echo "ZAP not ready"
-      
+
       - name: Stop ZAP process
         run: |
           pkill -f "zap.sh" || true
