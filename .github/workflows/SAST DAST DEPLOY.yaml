@@ -154,6 +154,12 @@ jobs:
           "$ZAP_HOME/zap.sh" -daemon -port ${{ env.ZAP_PORT }} -host 0.0.0.0 -config api.key=$(openssl rand -hex 16) -config api.disablekey=false -dir "$DAEMON_ZAP_HOME" &
           sleep 30
 
+      - name: Save ZAP API key to file
+        run: |
+          # Получаем ключ API и сохраняем его в файл
+          API_KEY=$("$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -apiKey "$(openssl rand -hex 16)")
+          echo "$API_KEY" > "$DAEMON_ZAP_HOME/api.key"
+
       - name: Create autorunzap.xml configuration file
         run: |
           mkdir -p "${{ env.SCRIPT_ZAP_HOME }}/zap-reports"
@@ -178,7 +184,9 @@ jobs:
 
       - name: Run DAST Scan using ZAP Command Line
         run: |
-          "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key=$(cat "$DAEMON_ZAP_HOME/api.key") -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
+          # Запускаем сканирование с использованием сохраненного ключа API
+          API_KEY=$(cat "$DAEMON_ZAP_HOME/api.key")
+          "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key="$API_KEY" -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
 
       - name: Stop ZAP process
         run: |
