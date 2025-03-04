@@ -178,7 +178,11 @@ jobs:
         run: |
           API_KEY=$(cat "$DAEMON_ZAP_HOME/api.key")
           "$ZAP_HOME/zap.sh" -cmd -port ${{ env.ZAP_PORT }} -config api.key="$API_KEY" -autorun "$DAEMON_ZAP_HOME/autorunzap.xml"
-
+      
+      - name: Check ZAP Status
+        run: |
+          curl -s -X GET "http://localhost:${{ env.ZAP_PORT }}/JSON/core/view/version" --header "X-ZAP-API-Key: ${{ env.ZAP_API_KEY }}" || echo "ZAP not ready"
+      
       - name: Stop ZAP process
         run: |
           pkill -f "zap.sh" || true
