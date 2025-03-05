@@ -35,36 +35,16 @@ jobs:
           pip install uwsgi
           nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
-          sleep 20
+          sleep 60
           echo "Django application started on http://127.0.0.1:8000"
 
-      # Установка и настройка nginx
-      - name: Install and configure nginx
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nginx
-          sudo systemctl stop nginx
-          echo "server {
-            listen 80;
-            server_name localhost;
-            location / {
-              proxy_pass http://127.0.0.1:8000;
-              proxy_set_header Host \$host;
-              proxy_set_header X-Real-IP \$remote_addr;
-              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            }
-          }" | sudo tee /etc/nginx/sites-available/django
-          sudo ln -s /etc/nginx/sites-available/django /etc/nginx/sites-enabled/
-          sudo nginx -t  # Проверка конфигурации nginx
-          sudo systemctl start nginx
-          echo "Nginx started and configured to forward requests to Django."
-
-      # Проверка доступности Django-сервера через nginx
+      # Проверка доступности Django-сервера
       - name: Check if Django server is running
         run: |
-          timeout=180
+          timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1/myparking/ | grep -q '<!DOCTYPE html>' && break
+            curl -v http://127.0.0.1:8000/myparking/
+            curl -sL http://127.0.0.1:8000/myparking/ | grep -q ' ' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -81,18 +61,12 @@ jobs:
         run: |
           cat django.log
 
-      # Показать логи nginx (в случае ошибки)
-      - name: Show nginx logs
-        if: failure()
-        run: |
-          cat /var/log/nginx/error.log
-
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
-            -t http://127.0.0.1/myparking/ \
+            -t http://127.0.0.1:8000/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
