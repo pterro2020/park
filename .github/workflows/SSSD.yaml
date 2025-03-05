@@ -61,22 +61,17 @@ jobs:
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://localhost:8000/myparking/ \
-            -r zap_report.html \
+            -r zap_report.json \  # Генерируем JSON-отчет
             -g zap_config.zap \
-            -l WARN \
-            -x zap.xml \
-            -i zap-baseline.ignore || true
+            -l IGNORE \  # Игнорируем предупреждения
+            -x zap.xml || true  # Добавляем игнорирование ошибок
 
-      # Показать отчет ZAP (в случае ошибки)
-      - name: Show ZAP report
-        if: failure()
+      # Преобразование JSON-отчета ZAP в Markdown
+      - name: Convert JSON report to Markdown
         run: |
-          cat zap_report.html
-
-      # Преобразование HTML-отчета в Markdown
-      - name: Convert HTML report to Markdown
-        run: |
-          pandoc -f html -t markdown zap_report.html -o zap_report.md
+          echo "# ZAP Scan Results" > zap_report.md
+          echo "" >> zap_report.md
+          jq -r '.alerts[] | "## Alert: \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
           cat zap_report.md
 
       # Публикация отчета
