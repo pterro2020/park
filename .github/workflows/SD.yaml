@@ -31,12 +31,18 @@ jobs:
         run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
+ 
   sast:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-		
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'	
+      
       - name: Install Bandit for Python SAST
         run: |
           pip install bandit
