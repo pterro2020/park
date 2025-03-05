@@ -32,7 +32,7 @@ jobs:
       # Шаг 3: Запуск Django-приложения в фоновом режиме
       - name: Start Django application
         run: |
-          cd park  # Переходим в директорию проекта
+          cd park/  # Переходим в директорию проекта
           python manage.py migrate
           nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
           echo "Django application started on http://localhost:8000"
@@ -40,7 +40,7 @@ jobs:
       # Шаг 4: Установка OWASP ZAP
       - name: Download and setup OWASP ZAP
         run: |
-          wget https://github.com/zaproxy/zaproxy/releases/download/v2.12.0/ZAP_2.12.0_Linux.tar.gz -O zap.tar.gz
+          wget https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz -O zap.tar.gz
           tar -xzf zap.tar.gz
           mv ZAP_* zap
           chmod +x zap/bin/zap-baseline.py
