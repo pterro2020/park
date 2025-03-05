@@ -17,21 +17,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'  # Исправлен пробел в версии Python
+          python-version: '3.9'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Настройка прав доступа к рабочей директории
+      # Настройка прав доступа
       - name: Set permissions for working directory
         run: |
           sudo chmod -R 777 $(pwd)
           sudo chown -R 1000:1000 $(pwd)
 
-      # Запуск NGINX на порту 8080 (если используется)
-      - name: Install and configure NGINX
+      # Запуск NGINX для перенаправления трафика
+      - name: Configure and start NGINX
         run: |
           sudo apt-get update
           sudo apt-get install -y nginx
@@ -39,7 +39,7 @@ jobs:
             listen 8080;
             server_name localhost;
             location / {
-              proxy_pass http://127.0.0.1:8000;  # Django работает на 8000
+              proxy_pass http://127.0.0.1:8000;
               proxy_set_header Host \$host;
               proxy_set_header X-Real-IP \$remote_addr;
               proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -50,17 +50,17 @@ jobs:
           sudo systemctl restart nginx
           echo "NGINX configured to listen on port 8080"
 
-      # Запуск Django-сервера с uWSGI на порту 8000
+      # Запуск Django-сервера с uWSGI
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
           nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
-          sleep 30  # Увеличено время ожидания для стабильности
+          sleep 20
           echo "Django application started on http://127.0.0.1:8000"
 
-      # Проверка доступности Django через NGINX порт 8080
-      - name: Check if Django server is running
+      # Проверка доступности Django через NGINX
+      - name: Check if Django server is running via NGINX
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
@@ -73,7 +73,7 @@ jobs:
             echo "Django server failed to start within the timeout period."
             exit 1
           fi
-          echo "Django server is running on port 8080."
+          echo "Django server is running via NGINX."
 
       # Показать логи Django (в случае ошибки)
       - name: Show Django logs
@@ -81,44 +81,38 @@ jobs:
         run: |
           cat django.log
 
-      # Показать логи NGINX (в случае ошибки)
-      - name: Show NGINX logs
-        if: failure()
-        run: |
-          sudo cat /var/log/nginx/error.log
-
-      # Создание файла исключений
+      # Создание файла исключений zap-baseline.ignore
       - name: Create zap-baseline.ignore file
         run: |
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
+          echo "10010  # Cookie No HttpOnly Flag" > zap-baseline.ignore
           echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
           echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+          echo "10017  # Cross-Domain JavaScript Source File Inclusion" >> zap-baseline.ignore
+          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
+          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
 
-      # Запуск OWASP ZAP Baseline Scan через порт NGINX 8080
+      # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:latest \
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
-            -t http://localhost:8080/myparking/ \  # Порт NGINX 8080
+            -t http://localhost:8080/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
-            -l IGNORE \
+            -l PASS \  # Игнорируем предупреждения (WARN)
             -i zap-baseline.ignore \
             -x zap.xml || true
 
-      # Проверка JSON-отчета
-      - name: Validate JSON report
+      # Проверка наличия JSON-отчета
+      - name: Validate and Inspect zap_report.json content
         run: |
           if [ ! -f zap_report.json ]; then
-            echo "File zap_report.json not found."
+            echo "File zap_report.json does not exist."
             exit 1
           fi
-          jq empty zap_report.json || (echo "Invalid JSON content"; exit 1)
+          jq empty zap_report.json || (echo "Invalid JSON content in zap_report.json"; exit 1)
 
-      # Преобразование JSON в Markdown
+      # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
         run: |
           echo "# ZAP Scan Results" > zap_report.md
@@ -133,8 +127,8 @@ jobs:
           name: zap-report
           path: zap_report.md
 
-      # Очистка процессов
-      - name: Cleanup
+      # Очистка процессов после завершения
+      - name: Cleanup processes
         run: |
           pkill -f uwsgi || true
           sudo systemctl stop nginx || true
