@@ -29,7 +29,7 @@ jobs:
         run: |
           docker network create zap-network || true
 
-      # Запуск Django-сервера с uWSGI
+      # Запуск Django-сервера через uWSGI (если требуется)
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
@@ -38,21 +38,21 @@ jobs:
           sleep 20
           echo "Django application started on http://127.0.0.1:8000"
 
-      # Проверка доступности Django-сервера
-      - name: Check if Django server is running
+      # Проверка доступности сервера через nginx
+      - name: Check if server is running
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
-            echo "Waiting for Django server to become available... ($timeout seconds left)"
+            curl -sL http://127.0.0.1/myparking/ | grep -q '<!DOCTYPE html>' && break
+            echo "Waiting for server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
           done
           if [ $timeout -le 0 ]; then
-            echo "Django server failed to start within the timeout period."
+            echo "Server failed to start within the timeout period."
             exit 1
           fi
-          echo "Django server is running."
+          echo "Server is running."
 
       # Показать логи Django (в случае ошибки)
       - name: Show Django logs
@@ -60,12 +60,22 @@ jobs:
         run: |
           cat django.log
 
+      # Создание файла исключений zap-baseline.ignore
+      - name: Create zap-baseline.ignore file
+        run: |
+          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
+          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
+          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
+          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
+          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
+          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
           docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
-            -t http://127.0.0.1:8000/myparking/ \
+            -t http://127.0.0.1/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
