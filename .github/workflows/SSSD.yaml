@@ -105,7 +105,7 @@ jobs:
             -t http://localhost:8080/myparking/ \  # Скан через NGINX (порт 8080)
             -r zap_report.json \
             -g zap_config.zap \
-            -l PASS \  # Игнорируем предупреждения
+            -I PASS \  # Игнорируем предупреждения
             -i zap-baseline.ignore \
             -x zap.xml || true
           allow_failure: true
