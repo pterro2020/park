@@ -97,7 +97,7 @@ jobs:
         run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
-		  		  
+
       # Запуск сканирования OWASP ZAP через Docker
       - name: Run OWASP ZAP Baseline Scan
         run: |
