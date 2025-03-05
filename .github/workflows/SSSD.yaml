@@ -29,15 +29,6 @@ jobs:
         run: |
           docker network create zap-network || true
 
-      # Запуск Django-сервера через uWSGI (если требуется)
-      - name: Start Django application with uWSGI
-        run: |
-          pip install uwsgi
-          nohup uwsgi --http :80 --module parking.wsgi > django.log 2>&1 &
-          echo "Waiting for Django application to start..."
-          sleep 20
-          echo "Django application started on http://127.0.0.1:80"
-
       # Проверка доступности сервера через nginx
       - name: Check if server is running
         run: |
@@ -59,12 +50,6 @@ jobs:
         if: failure()
         run: |
           cat /var/log/nginx/error.log
-
-      # Показать логи Django (в случае ошибки)
-      - name: Show Django logs
-        if: failure()
-        run: |
-          cat django.log
 
       # Создание файла исключений zap-baseline.ignore
       - name: Create zap-baseline.ignore file
