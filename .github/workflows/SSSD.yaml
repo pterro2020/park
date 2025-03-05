@@ -33,10 +33,10 @@ jobs:
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
-          nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
+          nohup uwsgi --http :80 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
           sleep 20
-          echo "Django application started on http://127.0.0.1:8000"
+          echo "Django application started on http://127.0.0.1:80"
 
       # Проверка доступности сервера через nginx
       - name: Check if server is running
@@ -53,6 +53,12 @@ jobs:
             exit 1
           fi
           echo "Server is running."
+
+      # Показать логи nginx (в случае ошибки)
+      - name: Show nginx logs
+        if: failure()
+        run: |
+          cat /var/log/nginx/error.log
 
       # Показать логи Django (в случае ошибки)
       - name: Show Django logs
