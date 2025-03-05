@@ -38,12 +38,33 @@ jobs:
           sleep 20
           echo "Django application started on http://127.0.0.1:8000"
 
-      # Проверка доступности Django-сервера
+      # Установка и настройка nginx
+      - name: Install and configure nginx
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          sudo systemctl stop nginx
+          echo "server {
+            listen 80;
+            server_name localhost;
+            location / {
+              proxy_pass http://127.0.0.1:8000;
+              proxy_set_header Host \$host;
+              proxy_set_header X-Real-IP \$remote_addr;
+              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            }
+          }" | sudo tee /etc/nginx/sites-available/django
+          sudo ln -s /etc/nginx/sites-available/django /etc/nginx/sites-enabled/
+          sudo nginx -t  # Проверка конфигурации nginx
+          sudo systemctl start nginx
+          echo "Nginx started and configured to forward requests to Django."
+
+      # Проверка доступности Django-сервера через nginx
       - name: Check if Django server is running
         run: |
-          timeout=120
+          timeout=180
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
+            curl -sL http://127.0.0.1/myparking/ | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -60,28 +81,23 @@ jobs:
         run: |
           cat django.log
 
-      # Создание файла исключений zap-baseline.ignore
-      - name: Create zap-baseline.ignore file
+      # Показать логи nginx (в случае ошибки)
+      - name: Show nginx logs
+        if: failure()
         run: |
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
-          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
-          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+          cat /var/log/nginx/error.log
 
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:latest \
+          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://127.0.0.1:8000/myparking/ \
+            -t http://127.0.0.1/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
             -i zap-baseline.ignore \
-            -x zap.xml \
-            -a || true
+            -x zap.xml || true
 
       # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
@@ -101,4 +117,3 @@ jobs:
         with:
           name: zap-report
           path: zap_report.md
-          if-no-files-found: warn
