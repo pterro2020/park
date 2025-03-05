@@ -13,49 +13,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Клонирование репозитория
+      # Шаг 1: Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Проверка структуры проекта
+      # Шаг 2: Проверка структуры проекта
       - name: Show directory structure
         run: |
           ls -la
 
-      # Установка Python и зависимостей Django
+      # Шаг 3: Установка Python и зависимостей Django
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Сборка статических файлов
-      - name: Collect static files
-        run: |
-          python manage.py collectstatic --noinput
-
-      # Применение миграций
+      # Шаг 4: Применение миграций
       - name: Apply migrations
         run: |
           python manage.py makemigrations
           python manage.py migrate
 
-      # Запуск Django-сервера
-      - name: Start Django application
+      # Шаг 5: Сборка статических файлов
+      - name: Collect static files
         run: |
-          nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
+          python manage.py collectstatic --noinput
+
+      # Шаг 6: Запуск Django-сервера с Gunicorn
+      - name: Start Django application with Gunicorn
+        run: |
+          pip install gunicorn  # Установка Gunicorn
+          nohup gunicorn myparking.wsgi:application --bind 0.0.0.0:8000 > django.log 2>&1 &
           echo "Waiting for Django application to start..."
-          sleep 15
+          sleep 10  # Даем время на запуск сервера
           echo "Django application started on http://localhost:8000"
 
-      # Проверка доступности сервера
+      # Шаг 7: Проверка доступности сервера
       - name: Check if Django server is running
         run: |
-          timeout=180  # Увеличиваем таймаут до 180 секунд
+          timeout=60
           while [ $timeout -gt 0 ]; do
             curl -s http://localhost:8000 | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
@@ -68,13 +69,13 @@ jobs:
           fi
           echo "Django server is running."
 
-      # Показать логи Django (в случае ошибки)
+      # Шаг 8: Показать логи Django (в случае ошибки)
       - name: Show Django logs
         if: failure()
         run: |
           cat django.log
 
-      # Запуск сканирования OWASP ZAP через Docker
+      # Шаг 9: Запуск сканирования OWASP ZAP через Docker
       - name: Run OWASP ZAP Baseline Scan
         run: |
           docker run --rm -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable:latest \
@@ -85,13 +86,13 @@ jobs:
             -l WARN \
             -x zap.xml
 
-      # Преобразование HTML-отчета в Markdown
+      # Шаг 10: Преобразование HTML-отчета в Markdown
       - name: Convert HTML report to Markdown
         run: |
           pandoc -f html -t markdown zap_report.html -o zap_report.md
           cat zap_report.md
 
-      # Публикация отчета
+      # Шаг 11: Публикация отчета
       - name: Upload ZAP Report as Artifact
         uses: actions/upload-artifact@v4
         with:
