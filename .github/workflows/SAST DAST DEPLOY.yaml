@@ -129,7 +129,7 @@ jobs:
             -p ${{ env.ZAP_PORT }}:8080 \
             -v "$DAEMON_ZAP_HOME":/home/zap/.ZAP_D/ \
             --name zap-daemon \
-            owasp/zap2docker-stable \
+            ghcr.io/zaproxy/zaproxy:stable \
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.key=${{ env.ZAP_API_KEY }} -config api.disablekey=false
 
       - name: Wait for ZAP to start
