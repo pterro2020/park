@@ -81,7 +81,7 @@ jobs:
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://localhost:8000/myparking/ \
-            -r zap_report.json \
+            -J zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
             -i zap-baseline.ignore \
