@@ -43,7 +43,6 @@ jobs:
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -v http://127.0.0.1:8000/myparking/
             curl -sL http://127.0.0.1:8000/myparking/ | grep -q ' ' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
@@ -74,7 +73,7 @@ jobs:
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://127.0.0.1:8000/myparking/ \
             -r zap_report.json \
@@ -82,16 +81,6 @@ jobs:
             -l IGNORE \
             -i zap-baseline.ignore \
             -x zap.xml || true
-
-      # Показать содержимое zap_report.json (в случае ошибки)
-      - name: Show zap_report.json content
-        if: failure()
-        run: |
-          if [ -f zap_report.json ]; then
-            cat zap_report.json
-          else
-            echo "File zap_report.json does not exist."
-          fi
 
       # Установка jq
       - name: Install jq
