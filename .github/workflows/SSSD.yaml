@@ -43,8 +43,8 @@ jobs:
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -v http://127.0.0.1:8000/myparking/
-            curl -sL http://127.0.0.1:8000/myparking/ | grep -q ' ' && break
+            curl -v http://127.0.0.1:80/myparking/
+            curl -sL http://127.0.0.1:80/myparking/ | grep -q ' ' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -66,7 +66,7 @@ jobs:
         run: |
           docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
-            -t http://127.0.0.1:8000/myparking/ \
+            -t http://127.0.0.1:80/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
