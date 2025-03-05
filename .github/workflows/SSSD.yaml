@@ -60,20 +60,10 @@ jobs:
         run: |
           cat django.log
 
-      # Создание файла исключений zap-baseline.ignore
-      - name: Create zap-baseline.ignore file
-        run: |
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
-          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
-          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
-
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
             -t http://127.0.0.1:8000/myparking/ \
             -r zap_report.json \
@@ -85,6 +75,10 @@ jobs:
       # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
         run: |
+          if [ ! -f zap_report.json ]; then
+            echo "File zap_report.json not found. Exiting without generating Markdown report."
+            exit 0
+          fi
           echo "# ZAP Scan Results" > zap_report.md
           echo "" >> zap_report.md
           jq -r '.alerts[] | "## Alert: \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
