@@ -26,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.9'  # Используем стабильную версию Python
 
       - name: Install dependencies
         run: |
@@ -38,12 +38,30 @@ jobs:
         run: |
           python manage.py migrate
           nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
+          echo "Waiting for Django application to start..."
+          sleep 10  # Даем время на запуск сервера
           echo "Django application started on http://localhost:8000"
 
-      # Шаг 5: Запуск сканирования OWASP ZAP через Docker
+      # Шаг 5: Проверка доступности Django-сервера
+      - name: Check if Django server is running
+        run: |
+          timeout=60
+          while [ $timeout -gt 0 ]; do
+            curl -s http://localhost:8000 | grep -q '<!DOCTYPE html>' && break
+            echo "Waiting for Django server to become available... ($timeout seconds left)"
+            sleep 5
+            timeout=$((timeout - 5))
+          done
+          if [ $timeout -le 0 ]; then
+            echo "Django server failed to start within the timeout period."
+            exit 1
+          fi
+          echo "Django server is running."
+
+      # Шаг 6: Запуск сканирования OWASP ZAP через Docker
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --rm -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable:latest \
             zap-baseline.py \
             -t http://localhost:8000 \
             -r zap_report.html \
@@ -51,13 +69,13 @@ jobs:
             -l WARN \
             -x zap.xml
 
-      # Шаг 6: Преобразование HTML-отчета в Markdown
+      # Шаг 7: Преобразование HTML-отчета в Markdown
       - name: Convert HTML report to Markdown
         run: |
           pandoc -f html -t markdown zap_report.html -o zap_report.md
           cat zap_report.md
 
-      # Шаг 7: Публикация отчета
+      # Шаг 8: Публикация отчета
       - name: Upload ZAP Report as Artifact
         uses: actions/upload-artifact@v4
         with:
