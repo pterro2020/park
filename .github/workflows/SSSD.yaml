@@ -96,19 +96,21 @@ jobs:
           echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
           echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
           echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+          echo "10112  # Session Management Response Identified" >> zap-baseline.ignore
+          echo "10111  # Authentication Request Identified" >> zap-baseline.ignore
+          echo "10109  # Modern Web Application" >> zap-baseline.ignore
 
       # Запуск OWASP ZAP Baseline Scan через NGINX порт 8080
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
-            zap-baseline.py \
-            -t http://localhost:8080/myparking/ \  # Скан через NGINX (порт 8080)
-            -r zap_report.json \
-            -g zap_config.zap \
-            -I PASS \  # Игнорируем предупреждения
-            -i zap-baseline.ignore \
-            -x zap.xml || true
-          allow_failure: true
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          zap-baseline.py \
+          -t http://localhost:8000/myparking/ \
+          -r zap_report.json \
+          -g zap_config.zap \
+          -l IGNORE \
+          -i zap-baseline.ignore \
+          -x zap.xml
 
       # Проверка наличия JSON-отчета
       - name: Validate and Inspect zap_report.json content
