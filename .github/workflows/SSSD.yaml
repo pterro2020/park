@@ -13,41 +13,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Установка Docker
-      - name: Install Docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-          sudo systemctl start docker
-          sudo chmod 666 /var/run/docker.sock
+      # Установка Python и зависимостей
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      # Проверка установки Docker
-      - name: Verify Docker installation
+      - name: Install dependencies
         run: |
-          docker --version
-          docker ps
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      # Установка docker-compose
-      - name: Install docker-compose
+      # Создание Docker-сети
+      - name: Create Docker network
         run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose --version
+          docker network create zap-network || true
 
-      # Сборка и запуск Docker-контейнеров
-      - name: Build and start Docker containers
+      # Запуск Django-сервера с uWSGI
+      - name: Start Django application with uWSGI
         run: |
-          docker-compose up -d
-          echo "Waiting for Docker containers to start..."
+          pip install uwsgi
+          nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
+          echo "Waiting for Django application to start..."
           sleep 20
-          echo "Docker containers started."
+          echo "Django application started on http://127.0.0.1:8000"
 
-      # Проверка доступности Django-сервера через nginx
+      # Проверка доступности Django-сервера
       - name: Check if Django server is running
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1/myparking/ | grep -q '<!DOCTYPE html>' && break
+            curl -sL http://127.0.0.1:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -62,7 +58,7 @@ jobs:
       - name: Show Django logs
         if: failure()
         run: |
-          docker-compose logs django
+          cat django.log
 
       # Создание файла исключений zap-baseline.ignore
       - name: Create zap-baseline.ignore file
@@ -77,14 +73,15 @@ jobs:
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
-            -t http://127.0.0.1/myparking/ \
+            -t http://127.0.0.1:8000/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
             -i zap-baseline.ignore \
-            -x zap.xml || true
+            -x zap.xml \
+            -a || true
 
       # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
@@ -104,8 +101,4 @@ jobs:
         with:
           name: zap-report
           path: zap_report.md
-
-      # Остановка Docker-контейнеров
-      - name: Stop Docker containers
-        run: |
-          docker-compose down
+          if-no-files-found: warn
