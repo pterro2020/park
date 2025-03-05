@@ -43,7 +43,7 @@ jobs:
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1:8000/myparking/ | grep -q ' ' && break
+            curl -v http://127.0.0.1:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -60,16 +60,6 @@ jobs:
         run: |
           cat django.log
 
-      # Создание файла исключений zap-baseline.ignore
-      - name: Create zap-baseline.ignore file
-        run: |
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
-          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
-          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
-
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
@@ -82,11 +72,27 @@ jobs:
             -i zap-baseline.ignore \
             -x zap.xml || true
 
-      # Установка jq
-      - name: Install jq
+      # Проверка прав доступа
+      - name: Check permissions
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+          ls -ld $(pwd)
+          ls -l $(pwd)
+
+      # Проверка содержимого zap_report.json
+      - name: Inspect zap_report.json content
+        if: always()
+        run: |
+          if [ -f zap_report.json ]; then
+            cat zap_report.json
+          else
+            echo "File zap_report.json does not exist."
+          fi
+
+      # Показать логи ZAP (в случае ошибки)
+      - name: Show ZAP logs
+        if: failure()
+        run: |
+          cat zap.log
 
       # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
@@ -95,15 +101,11 @@ jobs:
             echo "File zap_report.json not found. Exiting without generating Markdown report."
             exit 0
           fi
-
-          # Проверка корректности JSON
           if ! jq empty zap_report.json; then
             echo "Invalid JSON in zap_report.json. Exiting without generating Markdown report."
             exit 0
           fi
-
           echo "# ZAP Scan Results" > zap_report.md
-          echo "" >> zap_report.md
           jq -r '.alerts[] | "## Alert: \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
           cat zap_report.md
 
