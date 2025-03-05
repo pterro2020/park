@@ -15,7 +15,7 @@ jobs:
     steps:
       # Шаг 1: Клонирование репозитория
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Шаг 2: Установка Python и зависимостей Django
       - name: Set up Python
@@ -63,7 +63,7 @@ jobs:
 
       # Шаг 7: Публикация отчета
       - name: Upload ZAP Report as Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: zap_report.md
