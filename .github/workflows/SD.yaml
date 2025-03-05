@@ -1,4 +1,4 @@
-name: SD
+name: SSDD
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-sast:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -21,40 +21,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Check Django migrations
         run: |
           python manage.py check --deploy
           python manage.py makemigrations --dry-run --check
-
       - name: Start local Django server in background
         run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
- 
-  sast:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'	
-      
       - name: Install Bandit for Python SAST
         run: |
           pip install bandit
-
       - name: Run Bandit (Python) for SAST
         run: |
           bandit -r . -f json -o bandit-report.json || true
-
       - name: Extract critical issues from Bandit report
         run: |
           jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
-
       - name: Generate SAST Report in Markdown
         run: |
           echo "# SAST Scan Results (Critical Issues)" > sast-report.md
@@ -62,7 +45,6 @@ jobs:
           echo "Below are the critical issues found during the SAST scan:" >> sast-report.md
           echo "" >> sast-report.md
           jq -r '.[] | "## Issue: \(.test_id) - \(.issue_text)\n\n- Severity: \(.issue_severity)\n- Confidence: \(.issue_confidence)\n- Filename: \(.filename)\n- Line: \(.line_number)\n\n"' critical-bandit-report.json >> sast-report.md
-
       - name: Upload SAST reports as artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,7 +54,6 @@ jobs:
             bandit-report.json
             critical-bandit-report.json
             sast-report.md
-
       - name: Create SAST Issue with Markdown report
         if: always()
         uses: actions/github-script@v6
@@ -81,23 +62,19 @@ jobs:
             const issueTitle = "SAST Scan Results (Critical Issues)";
             const issueBody = `
               Below are the critical issues found during the SAST scan:
-
               Full report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-
               \`\`\`markdown
               $(fs.readFileSync('sast-report.md').toString())
               \`\`\`
             `;
             const labels = ["sast", "security"];
             const assignees = [context.payload.sender.login];
-
             const issue = {
               title: issueTitle,
               body: issueBody,
               labels: labels,
               assignees: assignees
             };
-
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -125,7 +102,7 @@ jobs:
       # Запуск сканирования OWASP ZAP через Docker
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --rm -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable:latest \
+          docker run --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://localhost:8000 \
             -r zap_report.html \
