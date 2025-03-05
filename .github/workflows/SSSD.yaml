@@ -33,10 +33,10 @@ jobs:
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
-          nohup uwsgi --http :80 --module parking.wsgi > django.log 2>&1 &
+          nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
           sleep 20
-          echo "Django application started on http://127.0.0.1:80"
+          echo "Django application started on http://127.0.0.1:8000"
 
       # Запуск nginx для перенаправления запросов на порт 80
       - name: Start nginx
@@ -48,7 +48,7 @@ jobs:
             listen 80;
             server_name localhost;
             location / {
-              proxy_pass http://127.0.0.1:80;
+              proxy_pass http://127.0.0.1:8000;
               proxy_set_header Host \$host;
               proxy_set_header X-Real-IP \$remote_addr;
               proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
