@@ -26,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.9'
 
       - name: Install dependencies
         run: |
@@ -40,31 +40,24 @@ jobs:
           nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
           echo "Django application started on http://localhost:8000"
 
-      # Шаг 5: Установка OWASP ZAP
-      - name: Download and setup OWASP ZAP
-        run: |
-          wget https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz -O zap.tar.gz
-          tar -xzf zap.tar.gz
-          mv ZAP_* zap
-          chmod +x zap/bin/zap-baseline.py
-
-      # Шаг 6: Запуск сканирования OWASP ZAP
+      # Шаг 5: Запуск сканирования OWASP ZAP через Docker
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          ./zap/bin/zap-baseline.py \
+          docker run --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zap2docker-stable:latest \
+            zap-baseline.py \
             -t http://localhost:8000 \
             -r zap_report.html \
             -g zap_config.zap \
             -l WARN \
             -x zap.xml
 
-      # Шаг 7: Преобразование HTML-отчета в Markdown
+      # Шаг 6: Преобразование HTML-отчета в Markdown
       - name: Convert HTML report to Markdown
         run: |
           pandoc -f html -t markdown zap_report.html -o zap_report.md
           cat zap_report.md
 
-      # Шаг 8: Публикация отчета
+      # Шаг 7: Публикация отчета
       - name: Upload ZAP Report as Artifact
         uses: actions/upload-artifact@v4
         with:
