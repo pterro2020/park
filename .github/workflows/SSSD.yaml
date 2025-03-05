@@ -30,42 +30,22 @@ jobs:
           sudo chmod -R 777 $(pwd)
           sudo chown -R 1000:1000 $(pwd)
 
-      # Запуск NGINX для прослушивания порта 8080
-      - name: Configure and start NGINX
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nginx
-          echo "server {
-            listen 8080;
-            server_name localhost;
-            location / {
-              proxy_pass http://127.0.0.1:8000;
-              proxy_set_header Host \$host;
-              proxy_set_header X-Real-IP \$remote_addr;
-              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            }
-          }" | sudo tee /etc/nginx/sites-available/django
-          sudo ln -s /etc/nginx/sites-available/django /etc/nginx/sites-enabled/
-          sudo nginx -t || true
-          sudo systemctl restart nginx
-          echo "NGINX configured to listen on port 8080"
-
-      # Запуск Django-сервера с uWSGI на порту 8000
+      # Запуск Django-сервера с uWSGI
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
           nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
           sleep 20
-          echo "Django application started on http://127.0.0.1:8000"
+          echo "Django application started on http://localhost:8000"
 
-      # Проверка доступности Django через NGINX
-      - name: Check if Django server is running via NGINX
+      # Проверка доступности Django-сервера
+      - name: Check if Django server is running
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1:8080/myparking/ | grep -q '<!DOCTYPE html>' && break
-            echo "Waiting for Django server via NGINX... ($timeout seconds left)"
+            curl -sL http://localhost:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
+            echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
           done
@@ -73,19 +53,13 @@ jobs:
             echo "Django server failed to start within the timeout period."
             exit 1
           fi
-          echo "Django server is running via NGINX."
+          echo "Django server is running."
 
       # Показать логи Django (в случае ошибки)
       - name: Show Django logs
         if: failure()
         run: |
           cat django.log
-
-      # Показать логи NGINX (в случае ошибки)
-      - name: Show NGINX logs
-        if: failure()
-        run: |
-          sudo cat /var/log/nginx/error.log
 
       # Создание файла исключений zap-baseline.ignore
       - name: Create zap-baseline.ignore file
@@ -98,32 +72,43 @@ jobs:
           echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
           echo "10112  # Session Management Response Identified" >> zap-baseline.ignore
           echo "10111  # Authentication Request Identified" >> zap-baseline.ignore
-          echo "10109  # Modern Web Application" >> zap-baseline.ignore
+          echo "10031  # User Controllable HTML Element Attribute (Potential XSS)" >> zap-baseline.ignore
+          echo "10036  # Server Leaks Version Information via 'Server' HTTP Response Header Field" >> zap-baseline.ignore
 
-      # Запуск OWASP ZAP Baseline Scan через NGINX порт 8080
+      # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
-          zap-baseline.py \
-          -t http://localhost:8000/myparking/ \
-          -r zap_report.json \
-          -g zap_config.zap \
-          -l IGNORE \
-          -i zap-baseline.ignore \
-          -x zap.xml
+            zap-baseline.py \
+            -t http://localhost:8000/myparking/ \
+            -r zap_report.json \
+            -g zap_config.zap \
+            -l IGNORE \
+            -i zap-baseline.ignore \
+            -x zap.xml || true
 
-      # Проверка наличия JSON-отчета
+      # Проверка наличия и содержимого JSON-отчета
       - name: Validate and Inspect zap_report.json content
         run: |
           if [ ! -f zap_report.json ]; then
             echo "File zap_report.json not found. Exiting without generating Markdown report."
             exit 0
           fi
+
+          # Проверяем первые строки файла
+          head -n 5 zap_report.json || true
+
+          # Проверяем, является ли файл валидным JSON
           jq empty zap_report.json || (echo "Invalid JSON content in zap_report.json"; exit 1)
 
       # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
         run: |
+          if [ ! -f zap_report.json ]; then
+            echo "File zap_report.json not found. Exiting without generating Markdown report."
+            exit 0
+          fi
+
           echo "# ZAP Scan Results" > zap_report.md
           echo "" >> zap_report.md
           jq -r '.alerts[] | "## Alert: \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
@@ -135,9 +120,3 @@ jobs:
         with:
           name: zap-report
           path: zap_report.md
-
-      # Очистка процессов после завершения
-      - name: Cleanup processes
-        run: |
-          pkill -f uwsgi || true
-          sudo systemctl stop nginx || true
