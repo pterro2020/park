@@ -1,4 +1,4 @@
-name: DAST Scanning with OWASP ZAP
+name: CICD DAST
 
 on:
   push:
@@ -21,11 +21,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
-          cd park  # Переходим в директорию проекта
+          cd park/park  # Переходим в директорию проекта
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
