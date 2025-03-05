@@ -1,4 +1,4 @@
-name: CICD DAST
+name: DAST Scanning with OWASP ZAP
 
 on:
   push:
@@ -21,7 +21,6 @@ jobs:
       - name: Show directory structure
         run: |
           ls -la
-          ls -la park
 
       # Шаг 3: Установка Python и зависимостей Django
       - name: Set up Python
@@ -31,14 +30,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd park/park  # Переходим в правильную директорию
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       # Шаг 4: Запуск Django-приложения в фоновом режиме
       - name: Start Django application
         run: |
-          cd park/park  # Переходим в правильную директорию
           python manage.py migrate
           nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
           echo "Django application started on http://localhost:8000"
