@@ -17,7 +17,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Шаг 2: Установка Python и зависимостей Django
+      # Шаг 2: Проверка структуры проекта
+      - name: Show directory structure
+        run: |
+          ls -la
+          ls -la park
+
+      # Шаг 3: Установка Python и зависимостей Django
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -25,19 +31,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd park  # Переходим в директорию проекта
+          cd park/park  # Переходим в правильную директорию
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Шаг 3: Запуск Django-приложения в фоновом режиме
+      # Шаг 4: Запуск Django-приложения в фоновом режиме
       - name: Start Django application
         run: |
-          cd park/  # Переходим в директорию проекта
+          cd park/park  # Переходим в правильную директорию
           python manage.py migrate
           nohup python manage.py runserver 0.0.0.0:8000 > django.log 2>&1 &
           echo "Django application started on http://localhost:8000"
 
-      # Шаг 4: Установка OWASP ZAP
+      # Шаг 5: Установка OWASP ZAP
       - name: Download and setup OWASP ZAP
         run: |
           wget https://github.com/zaproxy/zaproxy/releases/download/v2.16.0/ZAP_2.16.0_Linux.tar.gz -O zap.tar.gz
@@ -45,7 +51,7 @@ jobs:
           mv ZAP_* zap
           chmod +x zap/bin/zap-baseline.py
 
-      # Шаг 5: Запуск сканирования OWASP ZAP
+      # Шаг 6: Запуск сканирования OWASP ZAP
       - name: Run OWASP ZAP Baseline Scan
         run: |
           ./zap/bin/zap-baseline.py \
@@ -55,13 +61,13 @@ jobs:
             -l WARN \
             -x zap.xml
 
-      # Шаг 6: Преобразование HTML-отчета в Markdown
+      # Шаг 7: Преобразование HTML-отчета в Markdown
       - name: Convert HTML report to Markdown
         run: |
           pandoc -f html -t markdown zap_report.html -o zap_report.md
           cat zap_report.md
 
-      # Шаг 7: Публикация отчета
+      # Шаг 8: Публикация отчета
       - name: Upload ZAP Report as Artifact
         uses: actions/upload-artifact@v4
         with:
