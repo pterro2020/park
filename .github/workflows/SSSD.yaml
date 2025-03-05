@@ -24,10 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Создание Docker-сети
-      - name: Create Docker network
+      # Установка jq
+      - name: Install jq
         run: |
-          docker network create zap-network || true
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       # Запуск Django-сервера с uWSGI
       - name: Start Django application with uWSGI
@@ -35,16 +36,16 @@ jobs:
           pip install uwsgi
           nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
-          sleep 60
-          echo "Django application started on http://127.0.0.1:8000"
+          sleep 20
+          echo "Django application started on http://localhost:8000"
 
       # Проверка доступности Django-сервера
       - name: Check if Django server is running
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -v http://127.0.0.1:8000/myparking/
-            curl -sL http://127.0.0.1:8000/myparking/ | grep -q ' ' && break
+            curl -v http://localhost:8000/myparking/
+            curl -sL http://localhost:8000/myparking/ | grep -q ' ' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -64,14 +65,15 @@ jobs:
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network zap-network --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://127.0.0.1:8000/myparking/ \
+            -t http://localhost:8000/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
             -l IGNORE \
             -i zap-baseline.ignore \
-            -x zap.xml || true
+            -x zap.xml \
+            -d || true
 
       # Преобразование JSON-отчета ZAP в Markdown
       - name: Convert JSON report to Markdown
