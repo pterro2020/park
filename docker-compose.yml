@@ -9,7 +9,7 @@ services:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
     ports:
-      - "80:80"  # Nginx слушает порт 80
+      - "8000:8080"  # Nginx слушает порт 8080
     environment:
       - PYTHONUNBUFFERED=1
       - DJANGO_SECRET_KEY=django-insecure-wf=md00ywe6f2a_l(&re&c9lvdbuoys(63gsp8m2=-x#e^(i9u
