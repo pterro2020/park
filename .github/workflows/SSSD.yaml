@@ -68,7 +68,7 @@ jobs:
       # Запуск OWASP ZAP Baseline Scan с явным указанием JSON-формата
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
             -t http://127.0.0.1:8000/myparking/ \
             -r zap_report.json \  # Явно указываем формат JSON
