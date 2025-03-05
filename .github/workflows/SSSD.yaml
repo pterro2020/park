@@ -31,7 +31,7 @@ jobs:
       # Проверка доступности Django-сервера
       - name: Check if Django server is running
         run: |
-          timeout=60  # Увеличиваем таймаут до 60 секунд
+          timeout=180  # Увеличиваем таймаут до 180 секунд
           while [ $timeout -gt 0 ]; do
             curl -s http://localhost:8000 | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
