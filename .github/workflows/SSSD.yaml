@@ -105,9 +105,10 @@ jobs:
             -t http://localhost:8080/myparking/ \  # Скан через NGINX (порт 8080)
             -r zap_report.json \
             -g zap_config.zap \
-            -l IGNORE \  # Игнорируем предупреждения
+            -l PASS \  # Игнорируем предупреждения
             -i zap-baseline.ignore \
             -x zap.xml || true
+          allow_failure: true
 
       # Проверка наличия JSON-отчета
       - name: Validate and Inspect zap_report.json content
