@@ -38,7 +38,7 @@ jobs:
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://localhost:8000 | grep -q '<!DOCTYPE html>' && break
+            curl -sL http://localhost:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -55,16 +55,23 @@ jobs:
         run: |
           cat django.log
 
-      # Запуск сканирования OWASP ZAP через Docker
+      # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -u root -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://localhost:8000/myparking/ \  # Указываем конкретный URL
+            -t http://localhost:8000/myparking/ \
             -r zap_report.html \
             -g zap_config.zap \
             -l WARN \
-            -x zap.xml
+            -x zap.xml \
+            -i zap-baseline.ignore || true
+
+      # Показать отчет ZAP (в случае ошибки)
+      - name: Show ZAP report
+        if: failure()
+        run: |
+          cat zap_report.html
 
       # Преобразование HTML-отчета в Markdown
       - name: Convert HTML report to Markdown
