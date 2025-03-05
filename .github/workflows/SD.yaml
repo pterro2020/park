@@ -97,7 +97,21 @@ jobs:
         run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
-
+      - name: Check if Django server is running
+        run: |
+          timeout=60
+          while [ $timeout -gt 0 ]; do
+          curl -s http://localhost:8000 | grep -q '<!DOCTYPE html>' && break
+          echo "Waiting for Django server to become available... ($timeout seconds left)"
+          sleep 5
+          timeout=$((timeout - 5))
+          done
+          if [ $timeout -le 0 ]; then
+          echo "Django server failed to start within the timeout period."
+          exit 1
+          fi
+          echo "Django server is running."
+          
       # Запуск сканирования OWASP ZAP через Docker
       - name: Run OWASP ZAP Baseline Scan
         run: |
