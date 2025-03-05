@@ -24,12 +24,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Создание Docker-сети
-      - name: Create Docker network
-        run: |
-          docker network create zap-network || true
-
-      # Запуск Django-сервера с uWSGI (остаётся на 8000)
+      # Запуск Django-сервера с uWSGI (порт 8000)
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
@@ -38,23 +33,25 @@ jobs:
           sleep 20
           echo "Django application started on http://127.0.0.1:8000"
 
-      # Установка и настройка NGINX (если используется)
-      - name: Configure NGINX for port 8080
+      # Установка и настройка NGINX (порт 8080)
+      - name: Install and configure NGINX
         run: |
           sudo apt-get update
           sudo apt-get install -y nginx
           sudo systemctl stop nginx
+          # Исправленная конфигурация NGINX
           echo "server {
             listen 8080;
             server_name localhost;
             location / {
               proxy_pass http://127.0.0.1:8000;
-              proxy_set_header Host $host;
-              proxy_set_header X-Real-IP $remote_addr;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header Host \$host;
+              proxy_set_header X-Real-IP \$remote_addr;
+              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
             }
           }" | sudo tee /etc/nginx/sites-available/django
           sudo ln -s /etc/nginx/sites-available/django /etc/nginx/sites-enabled/
+          # Проверка конфигурации NGINX
           sudo nginx -t
           sudo systemctl start nginx
           echo "NGINX configured to listen on port 8080 and proxy to 8000"
@@ -81,7 +78,7 @@ jobs:
         run: |
           sudo cat /var/log/nginx/error.log
 
-      # Создание файла исключений
+      # Создание файла исключений ZAP
       - name: Create zap-baseline.ignore file
         run: |
           echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
