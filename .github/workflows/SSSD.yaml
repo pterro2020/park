@@ -29,37 +29,62 @@ jobs:
         run: |
           docker network create zap-network || true
 
-      # Проверка доступности сервера через nginx
-      - name: Check if server is running
+      # Запуск Django-сервера через uWSGI
+      - name: Start Django application with uWSGI
+        run: |
+          pip install uwsgi
+          nohup uwsgi --http :80 --module parking.wsgi > django.log 2>&1 &
+          echo "Waiting for Django application to start..."
+          sleep 20
+          echo "Django application started on http://127.0.0.1:80"
+
+      # Запуск nginx для перенаправления запросов на порт 80
+      - name: Start nginx
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          sudo rm /etc/nginx/sites-enabled/default
+          echo "server {
+            listen 80;
+            server_name localhost;
+            location / {
+              proxy_pass http://127.0.0.1:80;
+              proxy_set_header Host \$host;
+              proxy_set_header X-Real-IP \$remote_addr;
+              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            }
+          }" | sudo tee /etc/nginx/sites-available/django
+          sudo ln -s /etc/nginx/sites-available/django /etc/nginx/sites-enabled/
+          sudo systemctl restart nginx
+          echo "Nginx started and configured to forward requests to Django."
+
+      # Проверка доступности Django-сервера через nginx
+      - name: Check if Django server is running
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
             curl -sL http://127.0.0.1/myparking/ | grep -q '<!DOCTYPE html>' && break
-            echo "Waiting for server to become available... ($timeout seconds left)"
+            echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
           done
           if [ $timeout -le 0 ]; then
-            echo "Server failed to start within the timeout period."
+            echo "Django server failed to start within the timeout period."
             exit 1
           fi
-          echo "Server is running."
+          echo "Django server is running."
+
+      # Показать логи Django (в случае ошибки)
+      - name: Show Django logs
+        if: failure()
+        run: |
+          cat django.log
 
       # Показать логи nginx (в случае ошибки)
       - name: Show nginx logs
         if: failure()
         run: |
           cat /var/log/nginx/error.log
-
-      # Создание файла исключений zap-baseline.ignore
-      - name: Create zap-baseline.ignore file
-        run: |
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
-          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
-          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
 
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
