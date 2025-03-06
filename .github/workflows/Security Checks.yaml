@@ -30,19 +30,19 @@ jobs:
           pip install bandit
       - name: Install Node.js tools
         run: |
-          npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest hadolint
+          npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest
 
-      # Проверка Dockerfile
+      # Проверка Dockerfile (если существует)
       - name: Dockerfile Linting
         if: ${{ fileExists('Dockerfile') }}
         run: |
-          docker run --rm -v $(pwd):/app hadolint/hadolint:latest hadolint Dockerfile > hadolint-report.txt || true
+          docker run --rm -v $(pwd):/app hadolint/hadolint hadolint Dockerfile > hadolint-report.txt || true
 
-      # Проверка docker-compose.yml
+      # Проверка docker-compose.yml (обновлено имя файла)
       - name: Docker Compose Validation
         if: ${{ fileExists('docker-compose.yml') }}
         run: |
-          docker-compose config > /dev/null || true
+          docker-compose -f docker-compose.yml config > /dev/null || true
           echo "Docker Compose config is valid." > docker-compose-report.txt
 
       # Django Security Checks
@@ -59,7 +59,7 @@ jobs:
       # SAST для JavaScript (ESLint)
       - name: Run ESLint (JavaScript)
         run: |
-          # Создаём конфиг для ESLint v9+
+          # Создаём конфиг для ESLint v9+ (исправлено для ES-модулей)
           echo '{
             "type": "module",
             "default": {
@@ -69,8 +69,9 @@ jobs:
               }
             }
           }' > .eslintrc.json
+          # Генерация JSON и HTML отчётов
           eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
-          eslint-html-reporter -i eslint-report.json -o eslint-report.html || true
+          eslint . --ext .js,.jsx --format html --output-file eslint-report.html || true
 
       # SAST для CSS (Stylelint)
       - name: Run Stylelint (CSS)
@@ -79,6 +80,7 @@ jobs:
           echo '{
             "extends": "stylelint-config-standard"
           }' > .stylelintrc.json
+          # Генерация JSON и HTML отчётов
           stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
           stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
 
@@ -90,23 +92,21 @@ jobs:
             "tagname-lowercase": true,
             "attr-lowercase": true
           }' > .htmlhintrc
-          htmlhint "**/*.html" --format json > htmlhint-report.json || true
+          # Исправлен формат команды
+          htmlhint "**/*.html" --format json --output htmlhint-report.json || true
 
       # Генерация объединённого отчёта
       - name: Generate Security Report
         run: |
           echo "# Security Checks Report" > security-report.md
-          
           # Docker
           echo "## Dockerfile Linting" >> security-report.md
           cat hadolint-report.txt >> security-report.md || echo "No Dockerfile found." >> security-report.md
           echo "## Docker Compose" >> security-report.md
           cat docker-compose-report.txt >> security-report.md || echo "No docker-compose.yml found." >> security-report.md
-          
           # Django
           echo "## Django Warnings" >> security-report.md
           cat django-check.txt >> security-report.md || echo "No Django issues found." >> security-report.md
-          
           # Python (Bandit)
           echo "## Python (Bandit)" >> security-report.md
           if [ -f bandit-report.json ]; then
@@ -114,7 +114,6 @@ jobs:
           else
             echo "No Python issues found." >> security-report.md
           fi
-          
           # JavaScript (ESLint)
           echo "## JavaScript (ESLint)" >> security-report.md
           if [ -f eslint-report.json ]; then
@@ -122,7 +121,6 @@ jobs:
           else
             echo "No JavaScript issues found." >> security-report.md
           fi
-          
           # CSS (Stylelint)
           echo "## CSS (Stylelint)" >> security-report.md
           if [ -f stylelint-report.json ]; then
@@ -130,7 +128,6 @@ jobs:
           else
             echo "No CSS issues found." >> security-report.md
           fi
-          
           # HTML (HTMLHint)
           echo "## HTML (HTMLHint)" >> security-report.md
           if [ -f htmlhint-report.json ]; then
