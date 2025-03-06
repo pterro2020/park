@@ -78,11 +78,10 @@ jobs:
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
             -t http://localhost:8000/myparking/ \
-            -r zap_report.json \
-            -g zap_config.zap \
-            -l IGNORE \  # Игнорируем все предупреждения
-            -I
-            -i zap-baseline.ignore \
+            -J zap_report.json \
+            -w report_md \
+            -g gen_file \
+            -I \  # Игнорируем все предупреждения
             -T 900000 \  # Таймаут ответа: 15 минут
             -m 1800 \    # Максимальное время сканирования: 30 минут
             -x zap.xml || true
