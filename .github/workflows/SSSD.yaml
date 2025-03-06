@@ -79,10 +79,10 @@ jobs:
             zap-baseline.py \
             -t http://localhost:8000/myparking/ \
             -J zap_report.json \
-            -w zap_report.md \
             -g gen_file \
             -I \  # Игнорируем все предупреждения
-            -x zap.xml || true
+#            -w zap_report.md \
+#            -x zap.xml || true
 
       # Генерация отчёта
       - name: Generate Markdown Report
