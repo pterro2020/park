@@ -39,60 +39,60 @@ jobs:
           sleep 30
           echo "Django application started on http://0.0.0.0:8000"
 
-      # Запуск OWASP ZAP Baseline Scan
-      - name: Run OWASP ZAP Baseline Scan
+      # Запуск OWASP ZAP Full Scan
+      - name: Run OWASP ZAP Full Scan
         run: |
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-full-scan.py \
             -t http://localhost:8000/myparking/ \
-            -J zap_report.json \
             -w report_md \
             -g gen_file \
             -I \  # Игнорируем все предупреждения
 
 
-      # Генерация отчёта
-      - name: Generate Markdown Report
-        run: |
-          # Если JSON-отчёт не существует — используем XML
-          if [ ! -f zap_report.json ] || ! jq empty zap_report.json >/dev/null 2>&1; then
-            echo "# ZAP Scan Report" > zap_report.md
-            echo "JSON report is invalid. Generating report from XML:" >> zap_report.md
-            echo "```xml" >> zap_report.md
-            cat zap.xml >> zap_report.md
-            echo "```" >> zap_report.md
-          else
-            echo "# ZAP Scan Results" > zap_report.md
-            echo "" >> zap_report.md
+#      # Генерация отчёта
+#      - name: Generate Markdown Report
+#        run: |
+#          # Если JSON-отчёт не существует — используем XML
+#          if [ ! -f zap_report.json ] || ! jq empty zap_report.json >/dev/null 2>&1; then
+#            echo "# ZAP Scan Report" > zap_report.md
+#            echo "JSON report is invalid. Generating report from XML:" >> zap_report.md
+#            echo "```xml" >> zap_report.md
+#            cat zap.xml >> zap_report.md
+#            echo "```" >> zap_report.md
+#          else
+#            echo "# ZAP Scan Results" > zap_report.md
+#            echo "" >> zap_report.md
 
-            # Обработка всех категорий алертов
-            echo "## All Alerts (Critical/High/Medium)" >> zap_report.md
-            jq -r '.alerts[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
-              zap_report.json >> zap_report.md || true
+#            # Обработка всех категорий алертов
+#            echo "## All Alerts (Critical/High/Medium)" >> zap_report.md
+#            jq -r '.alerts[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
+#              zap_report.json >> zap_report.md || true
 
-            echo "## Warnings (Medium/Low)" >> zap_report.md
-            jq -r '.warnings[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
-              zap_report.json >> zap_report.md || true
+#            echo "## Warnings (Medium/Low)" >> zap_report.md
+#            jq -r '.warnings[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
+#              zap_report.json >> zap_report.md || true
 
-            echo "## Informational Messages" >> zap_report.md
-            jq -r '.informational[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
-              zap_report.json >> zap_report.md || true
+#            echo "## Informational Messages" >> zap_report.md
+#            jq -r '.informational[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
+#              zap_report.json >> zap_report.md || true
 
-            # Если алерты не найдены — добавляем сообщение
-            if ! grep -q "###" zap_report.md; then
-              echo "No critical/high/medium alerts found." >> zap_report.md
-            fi
-          fi
+#            # Если алерты не найдены — добавляем сообщение
+#            if ! grep -q "###" zap_report.md; then
+#              echo "No critical/high/medium alerts found." >> zap_report.md
+#            fi
+#          fi
 
           # Выводим отчёт в логи
-          cat zap_report.md
+      - name: Generate Markdown Report
+        run: cat report_md.md
 
       # Публикация отчёта
       - name: Upload Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
-          path: zap_report.md
+          name: report_md
+          path: report_md.md
 
       # Очистка процессов
       - name: Cleanup processes
