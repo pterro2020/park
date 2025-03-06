@@ -1,0 +1,97 @@
+name: Security Checks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      # Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Проверка на секреты в коде
+      - name: Secret Scanning
+        uses: trufflesecurity/trufflehog@v3.40.2
+        with:
+          path: ./
+          scan_history: true
+          no_entropy: false
+          max_depth: 1000000
+          format: json
+          output: trufflehog-report.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Проверка конфигурации Django
+      - name: Django Security Checks
+        run: |
+          python manage.py check --deploy
+          python -c "import re; print('SECRET_KEY is secure' if re.match(r'^[A-Za-z0-9]{50,}$', open('parking/settings.py').read().split('SECRET_KEY = ')[1].split('\n')[0].strip('\'\"')) else 'SECRET_KEY is weak')"
+
+      # Проверка Docker-конфигурации (если есть)
+      - name: Dockerfile Linting
+        if: exists('.github/workflows/docker')
+        run: |
+          docker run --rm -v $(pwd):/app hadolint/hadolint hadolint Dockerfile > hadolint-report.txt || true
+
+      # Проверка зависимостей Node.js
+      - name: Node.js Vulnerability Scan
+        run: |
+          npm audit --json > npm-audit.json || true
+
+      # Проверка зависимостей Python
+      - name: Python Vulnerability Scan
+        run: |
+          pip-audit --format json -r requirements.txt > pip-audit.json || true
+
+      # Сбор отчётов
+      - name: Generate Security Report
+        run: |
+          echo "# Security Checks Report" > security-report.md
+          echo "## Secret Scanning (TruffleHog)" >> security-report.md
+          if [ -f trufflehog-report.json ]; then
+            jq -r '.[] | "### \(.DetectorName)\n- Secret: \(.Raw)\n- File: \(.SourceMetadata.Data.Git.File)\n- Line: \(.SourceMetadata.Data.Git.Line)\n"' trufflehog-report.json >> security-report.md || true
+          else
+            echo "No secrets found." >> security-report.md
+          fi
+          echo "## Django Security Warnings" >> security-report.md
+          python manage.py check --deploy 2>&1 | tee django-check.txt >> security-report.md || true
+          echo "## Dockerfile Linting" >> security-report.md
+          cat hadolint-report.txt >> security-report.md || echo "No Dockerfile found." >> security-report.md
+          echo "## Node.js Vulnerabilities" >> security-report.md
+          jq -r '.advisories[] | "### \(.title)\n- Severity: \(.severity)\n- Package: \(.name)@\(.version)\n- Path: \(.findings[].paths[0])\n"' npm-audit.json >> security-report.md || true
+          echo "## Python Vulnerabilities" >> security-report.md
+          jq -r '.[] | "### \(.id)\n- Name: \(.name)\n- Severity: \(.severity)\n- Fix: \(.fix_versions[0])\n"' pip-audit.json >> security-report.md || true
+
+      # Публикация отчётов
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            trufflehog-report.json
+            security-report.md
+            django-check.txt
+            hadolint-report.txt
+            npm-audit.json
+            pip-audit.json
+
+      # Создание GitHub Issue
+      - name: Create Security Issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            let issueBody = fs.readFileSync('security-report.md').toString().slice(0, 65000);  // Ограничение до 65К символов
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Security Checks Results",
+              body: issueBody,
+              labels: ["security"],
+              assignees: [context.actor]
+            });
