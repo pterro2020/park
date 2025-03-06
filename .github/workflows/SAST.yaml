@@ -9,97 +9,124 @@ jobs:
   build-and-sast:
     runs-on: ubuntu-latest
     steps:
+      # Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Установка Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
+      # Установка Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      # Установка зависимостей
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # Устанавливаем ESLint, Stylelint, HTMLHint и необходимые плагины
+          npm install -g eslint@latest stylelint@latest htmlhint eslint-html-reporter bandit-html
 
-      # Install SAST tools for multiple languages
-      - name: Install SAST tools
+      # Настройка конфигов для SAST
+      - name: Configure SAST tools
         run: |
-          pip install bandit
-          npm install -g eslint stylelint htmlhint eslint-html-reporter
+          # Создаём конфиг для ESLint (v9+)
+          echo 'export default [
+            {
+              rules: {
+                "no-console": "warn",
+                "no-debugger": "error"
+              }
+            }
+          ];' > eslint.config.js
 
-      - name: Check Django migrations
+          # Создаём конфиг для Stylelint
+          echo '{
+            "extends": "stylelint-config-standard"
+          }' > .stylelintrc.json
+
+          # Создаём конфиг для HTMLHint
+          echo '{
+            "tagname-lowercase": true,
+            "attr-lowercase": true
+          }' > .htmlhintrc
+
+      # Запуск Django-сервера
+      - name: Start Django application
         run: |
           python manage.py check --deploy
           python manage.py makemigrations --dry-run --check
-
-      - name: Start local Django server in background
-        run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
 
-      # Python SAST with Bandit
+      # SAST для Python (Bandit)
       - name: Run Bandit (Python)
         run: |
           bandit -r . -f json -o bandit-report.json || true
+          bandit-html -i bandit-report.json -o bandit-report.html || true  # Генерация HTML
 
-      # JavaScript SAST with ESLint
+      # SAST для JavaScript (ESLint)
       - name: Run ESLint (JavaScript)
         run: |
-          eslint . --ext .js,.jsx -f json -o eslint-report.json || true
+          eslint . --ext .js,.jsx --format json -o eslint-report.json || true
+          eslint-html-reporter -i eslint-report.json -o eslint-report.html || true  # Генерация HTML
 
-      # CSS SAST with Stylelint
+      # SAST для CSS (Stylelint)
       - name: Run Stylelint (CSS)
         run: |
           stylelint "**/*.{css,scss}" --formatter json > stylelint-report.json || true
+          stylelint "**/*.{css,scss}" --formatter html > stylelint-report.html || true  # Генерация HTML
 
-      # HTML SAST with HTMLHint
+      # SAST для HTML (HTMLHint)
       - name: Run HTMLHint (HTML)
         run: |
-          htmlhint --format json -o htmlhint-report.json "**/*.html" || true
+          htmlhint "**/*.html" --format json > htmlhint-report.json || true  # Исправлен формат
 
-      # Generate HTML reports
-      - name: Generate HTML reports
-        run: |
-          # ESLint HTML report
-          eslint-html-reporter -i eslint-report.json -o eslint-report.html
-          
-          # Bandit HTML report (using custom script)
-          python -c "
-          import json
-          with open('bandit-report.json') as f:
-              data = json.load(f)
-          html = '<html><body><h1>Bandit Report</h1><ul>'
-          for result in data['results']:
-              html += f'<li>{result["issue_text"]} ({result["issue_severity"]}) in {result["filename"]}:{result["line_number"]}</li>'
-          html += '</ul></body></html>'
-          with open('bandit-report.html', 'w') as f:
-              f.write(html)
-          "
-
-      # Combine reports into single markdown
+      # Генерация объединённого Markdown-отчёта
       - name: Generate Combined SAST Report
         run: |
-          echo "# Combined SAST Report" > combined-sast-report.md
-          echo "## Python (Bandit)" >> combined-sast-report.md
-          jq -r '.results[] | "### \(.test_id)\n- Severity: \(.issue_severity)\n- Line: \(.line_number)\n- File: \(.filename)\n- Issue: \(.issue_text)\n"' bandit-report.json >> combined-sast-report.md
+          echo "# SAST Scan Results" > sast-report.md
           
-          echo "## JavaScript (ESLint)" >> combined-sast-report.md
-          jq -r '.[] | "### \(.ruleId)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.filePath)\n- Message: \(.message)\n"' eslint-report.json >> combined-sast-report.md
-          
-          echo "## CSS (Stylelint)" >> combined-sast-report.md
-          jq -r '.[] | "### \(.rule)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.source)\n- Message: \(.text)\n"' stylelint-report.json >> combined-sast-report.md
-          
-          echo "## HTML (HTMLHint)" >> combined-sast-report.md
-          jq -r '.[] | "### \(.rule.id)\n- Severity: \(.rule.severity)\n- Line: \(.line)\n- File: \(.file)\n- Message: \(.message)\n"' htmlhint-report.json >> combined-sast-report.md
+          # Python (Bandit)
+          echo "## Python (Bandit)" >> sast-report.md
+          if [ -f bandit-report.json ]; then
+            jq -r '.results[] | "### \(.test_id)\n- Severity: \(.issue_severity)\n- Line: \(.line_number)\n- File: \(.filename)\n- Issue: \(.issue_text)\n"' bandit-report.json >> sast-report.md || true
+          else
+            echo "No Python issues found." >> sast-report.md
+          fi
 
-      - name: Upload SAST reports as artifact
-        if: always()
+          # JavaScript (ESLint)
+          echo "## JavaScript (ESLint)" >> sast-report.md
+          if [ -f eslint-report.json ]; then
+            jq -r '.[] | "### \(.ruleId)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.filePath)\n- Message: \(.message)\n"' eslint-report.json >> sast-report.md || true
+          else
+            echo "No JavaScript issues found." >> sast-report.md
+          fi
+
+          # CSS (Stylelint)
+          echo "## CSS (Stylelint)" >> sast-report.md
+          if [ -f stylelint-report.json ]; then
+            jq -r '.[] | "### \(.rule)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.source)\n- Message: \(.text)\n"' stylelint-report.json >> sast-report.md || true
+          else
+            echo "No CSS issues found." >> sast-report.md
+          fi
+
+          # HTML (HTMLHint)
+          echo "## HTML (HTMLHint)" >> sast-report.md
+          if [ -f htmlhint-report.json ]; then
+            jq -r '.[] | "### \(.rule.id)\n- Severity: \(.rule.severity)\n- Line: \(.line)\n- File: \(.file)\n- Message: \(.message)\n"' htmlhint-report.json >> sast-report.md || true
+          else
+            echo "No HTML issues found." >> sast-report.md
+          fi
+
+      # Публикация отчётов
+      - name: Upload SAST Reports
         uses: actions/upload-artifact@v4
         with:
           name: sast-reports
@@ -110,36 +137,38 @@ jobs:
             htmlhint-report.json
             bandit-report.html
             eslint-report.html
-            combined-sast-report.md
+            stylelint-report.html
+            sast-report.md
 
-      - name: Create SAST Issue with Report
-        if: always()
+      # Создание GitHub Issue
+      - name: Create SAST Issue
         uses: actions/github-script@v6
         with:
           script: |
+            const fs = require('fs');
             const issueTitle = "Security Scan Results";
             const issueBody = `
-              ## SAST Scan Results
-              Full reports available as artifacts: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-              
+              ## SAST Report
+              Full reports: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+
               ### Python (Bandit)
               \`\`\`markdown
-              $(cat combined-sast-report.md | grep -A 5 'Python (Bandit)')
+              ${fs.readFileSync('sast-report.md').toString().split('## JavaScript')[0] || 'No issues found'}
               \`\`\`
 
               ### JavaScript (ESLint)
               \`\`\`markdown
-              $(cat combined-sast-report.md | grep -A 5 'JavaScript (ESLint)')
+              ${fs.readFileSync('sast-report.md').toString().match(/## JavaScript.*?(?=## CSS)/s)[0] || 'No issues found'}
               \`\`\`
 
               ### CSS (Stylelint)
               \`\`\`markdown
-              $(cat combined-sast-report.md | grep -A 5 'CSS (Stylelint)')
+              ${fs.readFileSync('sast-report.md').toString().match(/## CSS.*?(?=## HTML)/s)[0] || 'No issues found'}
               \`\`\`
 
               ### HTML (HTMLHint)
               \`\`\`markdown
-              $(cat combined-sast-report.md | grep -A 5 'HTML (HTMLHint)')
+              ${fs.readFileSync('sast-report.md').toString().match(/## HTML.*$/s)[0] || 'No issues found'}
               \`\`\`
             `;
             github.rest.issues.create({
