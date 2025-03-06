@@ -32,15 +32,15 @@ jobs:
         run: |
           npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest
 
-      # Проверка Dockerfile (если существует)
+      # Проверка Dockerfile (в корне проекта)
       - name: Dockerfile Linting
-        if: ${{ fileExists('Dockerfile') }}
+        if: hashFiles('Dockerfile') != ''
         run: |
           docker run --rm -v $(pwd):/app hadolint/hadolint hadolint Dockerfile > hadolint-report.txt || true
 
-      # Проверка docker-compose.yml (обновлено имя файла)
+      # Проверка docker-compose.yml (в корне проекта)
       - name: Docker Compose Validation
-        if: ${{ fileExists('docker-compose.yml') }}
+        if: hashFiles('docker-compose.yml') != ''
         run: |
           docker-compose -f docker-compose.yml config > /dev/null || true
           echo "Docker Compose config is valid." > docker-compose-report.txt
@@ -57,9 +57,8 @@ jobs:
           bandit -r . -f html -o bandit-report.html || true
 
       # SAST для JavaScript (ESLint)
-      - name: Run ESLint (JavaScript)
+      - name: Configure ESLint
         run: |
-          # Создаём конфиг для ESLint v9+ (исправлено для ES-модулей)
           echo '{
             "type": "module",
             "default": {
@@ -69,31 +68,33 @@ jobs:
               }
             }
           }' > .eslintrc.json
-          # Генерация JSON и HTML отчётов
+      - name: Run ESLint (JavaScript)
+        run: |
           eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
           eslint . --ext .js,.jsx --format html --output-file eslint-report.html || true
 
       # SAST для CSS (Stylelint)
-      - name: Run Stylelint (CSS)
+      - name: Configure Stylelint
         run: |
-          # Создаём конфиг для Stylelint
           echo '{
             "extends": "stylelint-config-standard"
           }' > .stylelintrc.json
-          # Генерация JSON и HTML отчётов
+      - name: Run Stylelint (CSS)
+        run: |
           stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
           stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
 
       # SAST для HTML (HTMLHint)
-      - name: Run HTMLHint (HTML)
+      - name: Configure HTMLHint
         run: |
-          # Создаём конфиг для HTMLHint
           echo '{
             "tagname-lowercase": true,
             "attr-lowercase": true
           }' > .htmlhintrc
-          # Исправлен формат команды
-          htmlhint "**/*.html" --format json --output htmlhint-report.json || true
+      - name: Run HTMLHint (HTML)
+        run: |
+          htmlhint "**/*.html" --format json > htmlhint-report.json || true
+          htmlhint "**/*.html" --format html > htmlhint-report.html || true
 
       # Генерация объединённого отчёта
       - name: Generate Security Report
@@ -149,6 +150,7 @@ jobs:
             stylelint-report.json
             stylelint-report.html
             htmlhint-report.json
+            htmlhint-report.html
             django-check.txt
             hadolint-report.txt
             docker-compose-report.txt
@@ -162,7 +164,7 @@ jobs:
             const fs = require('fs');
             const issueTitle = "Security Checks Results";
             
-            // Ограничиваем длину отчёта до 65 000 символов
+            // Ограничиваем длину тела до 65 000 символов
             const body = fs.readFileSync('security-report.md').toString().slice(0, 65000);
             
             github.rest.issues.create({
