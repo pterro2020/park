@@ -79,10 +79,10 @@ jobs:
             zap-baseline.py \
             -t http://localhost:8000/myparking/ \
             -J zap_report.json \
-            -w report_md \
+            -w zap_report.md \
             -g gen_file \
             -I \  # Игнорируем все предупреждения
-            -m 1800 \    # Максимальное время сканирования: 30 минут
+            -T 900000 \  # Таймаут ответа: 15 минут
             -x zap.xml || true
 
       # Генерация отчёта
