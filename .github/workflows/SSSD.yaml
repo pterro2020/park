@@ -45,7 +45,6 @@ jobs:
             -r zap_report.html \
             -J zap_report.json \
             -w report_md.md \
-            --thread 5 \
             || echo "ZAP scan completed with warnings or errors."
 
       # Генерация Markdown-отчёта
