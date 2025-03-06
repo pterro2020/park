@@ -52,8 +52,7 @@ jobs:
             -J zap_report.json \
             -w report_md.md \
             -z "-config scanner.threadPerHost=1" \
-            --ignore-unknown \
-            -I \
+            -I \  # Корректный флаг для игнорирования предупреждений
             || echo "ZAP scan completed with warnings."
 
       # Генерация отчёта
