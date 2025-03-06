@@ -1,4 +1,4 @@
-name: SAST and DAST
+name: SAST
 
 on:
   push:
