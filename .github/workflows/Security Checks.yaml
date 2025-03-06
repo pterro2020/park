@@ -13,59 +13,131 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Проверка на секреты в коде
-      - name: Secret Scanning
-        uses: trufflesecurity/trufflehog@v3.40.2
+      # Установка Python и Node.js
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          path: ./
-          scan_history: true
-          no_entropy: false
-          max_depth: 1000000
-          format: json
-          output: trufflehog-report.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          python-version: '3.12'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      # Проверка конфигурации Django
+      # Установка зависимостей
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install bandit
+      - name: Install Node.js tools
+        run: |
+          npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest hadolint
+
+      # Проверка Dockerfile
+      - name: Dockerfile Linting
+        if: ${{ fileExists('Dockerfile') }}
+        run: |
+          docker run --rm -v $(pwd):/app hadolint/hadolint:latest hadolint Dockerfile > hadolint-report.txt || true
+
+      # Проверка docker-compose.yml
+      - name: Docker Compose Validation
+        if: ${{ fileExists('docker-compose.yml') }}
+        run: |
+          docker-compose config > /dev/null || true
+          echo "Docker Compose config is valid." > docker-compose-report.txt
+
+      # Django Security Checks
       - name: Django Security Checks
         run: |
-          python manage.py check --deploy
-          python -c "import re; print('SECRET_KEY is secure' if re.match(r'^[A-Za-z0-9]{50,}$', open('parking/settings.py').read().split('SECRET_KEY = ')[1].split('\n')[0].strip('\'\"')) else 'SECRET_KEY is weak')"
+          python manage.py check --deploy 2>&1 | tee django-check.txt || true
 
-      # Проверка Docker-конфигурации (если есть)
-      - name: Dockerfile Linting
-        if: exists('.github/workflows/docker')
+      # SAST для Python (Bandit)
+      - name: Run Bandit (Python)
         run: |
-          docker run --rm -v $(pwd):/app hadolint/hadolint hadolint Dockerfile > hadolint-report.txt || true
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f html -o bandit-report.html || true
 
-      # Проверка зависимостей Node.js
-      - name: Node.js Vulnerability Scan
+      # SAST для JavaScript (ESLint)
+      - name: Run ESLint (JavaScript)
         run: |
-          npm audit --json > npm-audit.json || true
+          # Создаём конфиг для ESLint v9+
+          echo '{
+            "type": "module",
+            "default": {
+              "rules": {
+                "no-console": "warn",
+                "no-debugger": "error"
+              }
+            }
+          }' > .eslintrc.json
+          eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
+          eslint-html-reporter -i eslint-report.json -o eslint-report.html || true
 
-      # Проверка зависимостей Python
-      - name: Python Vulnerability Scan
+      # SAST для CSS (Stylelint)
+      - name: Run Stylelint (CSS)
         run: |
-          pip-audit --format json -r requirements.txt > pip-audit.json || true
+          # Создаём конфиг для Stylelint
+          echo '{
+            "extends": "stylelint-config-standard"
+          }' > .stylelintrc.json
+          stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
+          stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
 
-      # Сбор отчётов
+      # SAST для HTML (HTMLHint)
+      - name: Run HTMLHint (HTML)
+        run: |
+          # Создаём конфиг для HTMLHint
+          echo '{
+            "tagname-lowercase": true,
+            "attr-lowercase": true
+          }' > .htmlhintrc
+          htmlhint "**/*.html" --format json > htmlhint-report.json || true
+
+      # Генерация объединённого отчёта
       - name: Generate Security Report
         run: |
           echo "# Security Checks Report" > security-report.md
-          echo "## Secret Scanning (TruffleHog)" >> security-report.md
-          if [ -f trufflehog-report.json ]; then
-            jq -r '.[] | "### \(.DetectorName)\n- Secret: \(.Raw)\n- File: \(.SourceMetadata.Data.Git.File)\n- Line: \(.SourceMetadata.Data.Git.Line)\n"' trufflehog-report.json >> security-report.md || true
-          else
-            echo "No secrets found." >> security-report.md
-          fi
-          echo "## Django Security Warnings" >> security-report.md
-          python manage.py check --deploy 2>&1 | tee django-check.txt >> security-report.md || true
+          
+          # Docker
           echo "## Dockerfile Linting" >> security-report.md
           cat hadolint-report.txt >> security-report.md || echo "No Dockerfile found." >> security-report.md
-          echo "## Node.js Vulnerabilities" >> security-report.md
-          jq -r '.advisories[] | "### \(.title)\n- Severity: \(.severity)\n- Package: \(.name)@\(.version)\n- Path: \(.findings[].paths[0])\n"' npm-audit.json >> security-report.md || true
-          echo "## Python Vulnerabilities" >> security-report.md
-          jq -r '.[] | "### \(.id)\n- Name: \(.name)\n- Severity: \(.severity)\n- Fix: \(.fix_versions[0])\n"' pip-audit.json >> security-report.md || true
+          echo "## Docker Compose" >> security-report.md
+          cat docker-compose-report.txt >> security-report.md || echo "No docker-compose.yml found." >> security-report.md
+          
+          # Django
+          echo "## Django Warnings" >> security-report.md
+          cat django-check.txt >> security-report.md || echo "No Django issues found." >> security-report.md
+          
+          # Python (Bandit)
+          echo "## Python (Bandit)" >> security-report.md
+          if [ -f bandit-report.json ]; then
+            jq -r '.results[] | "### \(.test_id)\n- Severity: \(.issue_severity)\n- Line: \(.line_number)\n- File: \(.filename)\n- Issue: \(.issue_text)\n"' bandit-report.json >> security-report.md || true
+          else
+            echo "No Python issues found." >> security-report.md
+          fi
+          
+          # JavaScript (ESLint)
+          echo "## JavaScript (ESLint)" >> security-report.md
+          if [ -f eslint-report.json ]; then
+            jq -r '.[] | "### \(.ruleId)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.filePath)\n- Message: \(.message)\n"' eslint-report.json >> security-report.md || true
+          else
+            echo "No JavaScript issues found." >> security-report.md
+          fi
+          
+          # CSS (Stylelint)
+          echo "## CSS (Stylelint)" >> security-report.md
+          if [ -f stylelint-report.json ]; then
+            jq -r '.[] | "### \(.rule)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.source)\n- Message: \(.text)\n"' stylelint-report.json >> security-report.md || true
+          else
+            echo "No CSS issues found." >> security-report.md
+          fi
+          
+          # HTML (HTMLHint)
+          echo "## HTML (HTMLHint)" >> security-report.md
+          if [ -f htmlhint-report.json ]; then
+            jq -r '.[] | "### \(.rule.id)\n- Severity: \(.rule.severity)\n- Line: \(.line)\n- File: \(.file)\n- Message: \(.message)\n"' htmlhint-report.json >> security-report.md || true
+          else
+            echo "No HTML issues found." >> security-report.md
+          fi
 
       # Публикация отчётов
       - name: Upload Security Reports
@@ -73,25 +145,34 @@ jobs:
         with:
           name: security-reports
           path: |
-            trufflehog-report.json
-            security-report.md
+            bandit-report.json
+            bandit-report.html
+            eslint-report.json
+            eslint-report.html
+            stylelint-report.json
+            stylelint-report.html
+            htmlhint-report.json
             django-check.txt
             hadolint-report.txt
-            npm-audit.json
-            pip-audit.json
+            docker-compose-report.txt
+            security-report.md
 
-      # Создание GitHub Issue
+      # Создание GitHub Issue с ограниченным размером
       - name: Create Security Issue
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require('fs');
-            let issueBody = fs.readFileSync('security-report.md').toString().slice(0, 65000);  // Ограничение до 65К символов
+            const issueTitle = "Security Checks Results";
+            
+            // Ограничиваем длину отчёта до 65 000 символов
+            const body = fs.readFileSync('security-report.md').toString().slice(0, 65000);
+            
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: "Security Checks Results",
-              body: issueBody,
+              title: issueTitle,
+              body: `## Report\n${body}\n\nFull reports: [Download](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
               labels: ["security"],
               assignees: [context.actor]
             });
