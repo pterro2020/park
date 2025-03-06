@@ -25,9 +25,10 @@ jobs:
           pip install -r requirements.txt
 
       # Настройка прав доступа
-      - name: Set permissions for working directory
+      - name: Prepare report file
         run: |
-          chmod -R 777 $(pwd)
+          touch report_md.md  # Создаём файл заранее
+          chmod 666 report_md.md  # Разрешаем запись для всех
 
       # Запуск Django-сервера
       - name: Start Django application with uWSGI
@@ -44,12 +45,12 @@ jobs:
       # Запуск OWASP ZAP
       - name: Run OWASP ZAP Full Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t --user root ghcr.io/zaproxy/zaproxy:latest \
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw,z -t --user root ghcr.io/zaproxy/zaproxy:latest \
             zap-full-scan.py \
             -t http://localhost:8000/myparking/ \
             -r zap_report.html \
             -J zap_report.json \
-            -w report_md.md \
+            -w /zap/wrk/report_md.md \  # Явное указание пути к файлу
             -z "-config scanner.threadPerHost=1" \
             -I \
             || echo "ZAP scan completed with warnings."
