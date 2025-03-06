@@ -38,16 +38,16 @@ jobs:
 
       # Запуск OWASP ZAP
       - name: Run OWASP ZAP Full Scan
-        run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t --user root ghcr.io/zaproxy/zaproxy:latest \
-            zap-full-scan.py \
-            -t http://localhost:8000/myparking/ \
-            -r zap_report.html \
-            -J zap_report.json \
-            -w report_md.md \
-            --thread 2 \
-            --ignore-unknown \
-            || echo "ZAP scan completed with warnings."
+      run: |
+        docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t --user root ghcr.io/zaproxy/zaproxy:latest \
+        zap-full-scan.py \
+          -t http://localhost:8000/myparking/ \
+          -r zap_report.html \
+          -J zap_report.json \
+          -w report_md.md \
+          --threads 2 \          # Правильный параметр для количества потоков
+          --ignore-unknown true \  # Явное указание значения
+          || echo "ZAP scan completed with warnings."
 
       # Генерация отчёта
       - name: Generate Markdown Report
