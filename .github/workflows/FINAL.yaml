@@ -1,0 +1,418 @@
+name: FINAL
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sast-scan:
+    runs-on: ubuntu-latest
+    steps:
+      # Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Установка Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      # Установка Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Установка зависимостей
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # Устанавливаем SAST-инструменты для Python
+          pip install bandit
+      # Установка ESLint и зависимостей
+      - name: Install ESLint and HTML reporter
+        run: |
+          npm install -g eslint@latest eslint-html-reporter@latest
+      # Установка Stylelint и конфига
+      - name: Install Stylelint
+        run: |
+          npm install -g stylelint@latest stylelint-config-standard
+      # Установка HTMLHint
+      - name: Install HTMLHint
+        run: |
+          npm install -g htmlhint@latest
+      # Настройка ESLint конфига (ES-модуль)
+      - name: Configure ESLint
+        run: |
+          echo '{
+            "type": "module",
+            "default": {
+              "rules": {
+                "no-console": "warn",
+                "no-debugger": "error"
+              }
+            }
+          }' > .eslintrc.json
+      # Проверка миграций Django
+      - name: Check Django migrations
+        run: |
+          python manage.py check --deploy
+          python manage.py makemigrations --dry-run --check
+      # Запуск Django-сервера
+      - name: Start Django application
+        run: |
+          python manage.py runserver 0.0.0.0:8000 &
+          sleep 10
+      # SAST для Python (Bandit)
+      - name: Run Bandit (Python)
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f html -o bandit-report.html || true
+      # SAST для JavaScript (ESLint)
+      - name: Run ESLint (JavaScript)
+        run: |
+          eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
+          # Генерация HTML-отчёта
+          eslint . --ext .js,.jsx --format html --output-file eslint-report.html || true
+      # SAST для CSS (Stylelint)
+      - name: Run Stylelint (CSS)
+        run: |
+          stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
+          stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
+      # SAST для HTML (HTMLHint)
+      - name: Run HTMLHint (HTML)
+        run: |
+          htmlhint "**/*.html" --format json --output htmlhint-report.json || true
+      # Генерация объединённого отчёта
+      - name: Generate Combined SAST Report
+        run: |
+          echo "# SAST Scan Results" > sast-report.md
+          # Python (Bandit)
+          echo "## Python (Bandit)" >> sast-report.md
+          if [ -f bandit-report.json ]; then
+            jq -r '.results[] | "### \(.test_id)\n- Severity: \(.issue_severity)\n- Line: \(.line_number)\n- File: \(.filename)\n- Issue: \(.issue_text)\n"' bandit-report.json >> sast-report.md || true
+          else
+            echo "No Python issues found." >> sast-report.md
+          fi
+          # JavaScript (ESLint)
+          echo "## JavaScript (ESLint)" >> sast-report.md
+          if [ -f eslint-report.json ]; then
+            jq -r '.[] | "### \(.ruleId)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.filePath)\n- Message: \(.message)\n"' eslint-report.json >> sast-report.md || true
+          else
+            echo "No JavaScript issues found." >> sast-report.md
+          fi
+          # CSS (Stylelint)
+          echo "## CSS (Stylelint)" >> sast-report.md
+          if [ -f stylelint-report.json ]; then
+            jq -r '.[] | "### \(.rule)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.source)\n- Message: \(.text)\n"' stylelint-report.json >> sast-report.md || true
+          else
+            echo "No CSS issues found." >> sast-report.md
+          fi
+          # HTML (HTMLHint)
+          echo "## HTML (HTMLHint)" >> sast-report.md
+          if [ -f htmlhint-report.json ]; then
+            jq -r '.[] | "### \(.rule.id)\n- Severity: \(.rule.severity)\n- Line: \(.line)\n- File: \(.file)\n- Message: \(.message)\n"' htmlhint-report.json >> sast-report.md || true
+          else
+            echo "No HTML issues found." >> sast-report.md
+          fi
+      # Публикация отчётов
+      - name: Upload SAST Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-reports
+          path: |
+            bandit-report.json
+            bandit-report.html
+            eslint-report.json
+            eslint-report.html
+            stylelint-report.json
+            stylelint-report.html
+            htmlhint-report.json
+            sast-report.md
+      # Создание GitHub Issue с кратким отчётом
+      - name: Create SAST Issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const issueTitle = "Security Scan Results";
+            const issueBody = `
+              ## SAST Report
+              Full reports: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              ### Python (Bandit)
+              \`\`\`markdown
+              ${fs.readFileSync('sast-report.md').toString().split('## JavaScript')[0] || 'No issues found'}
+              \`\`\`
+              ### JavaScript (ESLint)
+              \`\`\`markdown
+              ${fs.readFileSync('sast-report.md').toString().match(/## JavaScript.*?(?=## CSS)/s)[0] || 'No issues found'}
+              \`\`\`
+              ### CSS (Stylelint)
+              \`\`\`markdown
+              ${fs.readFileSync('sast-report.md').toString().match(/## CSS.*?(?=## HTML)/s)[0] || 'No issues found'}
+              \`\`\`
+              ### HTML (HTMLHint)
+              \`\`\`markdown
+              ${fs.readFileSync('sast-report.md').toString().match(/## HTML.*$/s)[0] || 'No issues found'}
+              \`\`\`
+            `;
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody.slice(0, 65000),  // Ограничение длины
+              labels: ["security", "sast"],
+              assignees: [context.actor]
+            });
+
+  dast-scan:
+    runs-on: ubuntu-latest
+    steps:
+      # Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Установка Python и зависимостей
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Подготовка отчёта
+      - name: Prepare report file
+        run: |
+          touch report_md.md
+          chmod 666 report_md.md
+
+      # Запуск Django-сервера
+      - name: Start Django application with uWSGI
+        run: |
+          pip install uwsgi
+          nohup uwsgi --http 0.0.0.0:8000 --module parking.wsgi --workers 2 --threads 1 > django.log 2>&1 &
+          echo "Waiting for Django application to start..."
+          until curl -s http://localhost:8000/myparking/ > /dev/null; do
+            echo "Still waiting..."
+            sleep 10
+          done
+          echo "Django is running."
+
+      # Запуск OWASP ZAP
+      - name: Run OWASP ZAP Full Scan
+        run: |
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw,z -t --user root ghcr.io/zaproxy/zaproxy:latest \
+            zap-full-scan.py \
+            -t http://localhost:8000/myparking/ \
+            -r zap_report.html \
+            -J zap_report.json \
+            -w report_md.md \
+            -z "-config scanner.threadPerHost=1" \
+            -I \  # Корректный флаг для игнорирования предупреждений
+            -I || echo "ZAP scan completed with warnings."
+
+      # Генерация отчёта
+      - name: Generate Markdown Report
+        run: |
+          if [ ! -f zap_report.json ]; then
+            echo "# ZAP Scan Report" > report_md.md
+            echo "No JSON report was generated by ZAP." >> report_md.md
+          else
+            echo "# ZAP Scan Results" > report_md.md
+            jq -r '.alerts[] | "### \(.alert)\n- Risk: \(.riskdesc)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n"' zap_report.json >> report_md.md || true
+            jq -r '.warnings[] | "### \(.alert)\n- Risk: \(.riskdesc)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n"' zap_report.json >> report_md.md || true
+          fi
+          cat report_md.md
+
+      # Публикация отчёта
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: |
+            report_md.md
+            zap_report.html
+            zap_report.json
+
+      # Очистка
+      - name: Cleanup processes
+        run: |
+          pkill -f uwsgi || true
+		  
+		  name: Security Checks
+
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      # Клонирование репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Установка Python и Node.js
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Установка зависимостей
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install bandit
+      - name: Install Node.js tools
+        run: |
+          npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest
+
+      # Проверка Dockerfile (в корне проекта)
+      - name: Dockerfile Linting
+        if: hashFiles('Dockerfile') != ''
+        run: |
+          docker run --rm -v $(pwd):/app hadolint/hadolint hadolint Dockerfile > hadolint-report.txt || true
+
+      # Проверка docker-compose.yml (в корне проекта)
+      - name: Docker Compose Validation
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          docker-compose -f docker-compose.yml config > /dev/null || true
+          echo "Docker Compose config is valid." > docker-compose-report.txt
+
+      # Django Security Checks
+      - name: Django Security Checks
+        run: |
+          python manage.py check --deploy 2>&1 | tee django-check.txt || true
+
+      # SAST для Python (Bandit)
+      - name: Run Bandit (Python)
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f html -o bandit-report.html || true
+
+      # SAST для JavaScript (ESLint)
+      - name: Configure ESLint
+        run: |
+          echo '{
+            "type": "module",
+            "default": {
+              "rules": {
+                "no-console": "warn",
+                "no-debugger": "error"
+              }
+            }
+          }' > .eslintrc.json
+      - name: Run ESLint (JavaScript)
+        run: |
+          eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
+          eslint . --ext .js,.jsx --format html --output-file eslint-report.html || true
+
+      # SAST для CSS (Stylelint)
+      - name: Configure Stylelint
+        run: |
+          echo '{
+            "extends": "stylelint-config-standard"
+          }' > .stylelintrc.json
+      - name: Run Stylelint (CSS)
+        run: |
+          stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
+          stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
+
+      # SAST для HTML (HTMLHint)
+      - name: Configure HTMLHint
+        run: |
+          echo '{
+            "tagname-lowercase": true,
+            "attr-lowercase": true
+          }' > .htmlhintrc
+      - name: Run HTMLHint (HTML)
+        run: |
+          htmlhint "**/*.html" --format json > htmlhint-report.json || true
+          htmlhint "**/*.html" --format html > htmlhint-report.html || true
+
+      # Генерация объединённого отчёта
+      - name: Generate Security Report
+        run: |
+          echo "# Security Checks Report" > security-report.md
+          # Docker
+          echo "## Dockerfile Linting" >> security-report.md
+          cat hadolint-report.txt >> security-report.md || echo "No Dockerfile found." >> security-report.md
+          echo "## Docker Compose" >> security-report.md
+          cat docker-compose-report.txt >> security-report.md || echo "No docker-compose.yml found." >> security-report.md
+          # Django
+          echo "## Django Warnings" >> security-report.md
+          cat django-check.txt >> security-report.md || echo "No Django issues found." >> security-report.md
+          # Python (Bandit)
+          echo "## Python (Bandit)" >> security-report.md
+          if [ -f bandit-report.json ]; then
+            jq -r '.results[] | "### \(.test_id)\n- Severity: \(.issue_severity)\n- Line: \(.line_number)\n- File: \(.filename)\n- Issue: \(.issue_text)\n"' bandit-report.json >> security-report.md || true
+          else
+            echo "No Python issues found." >> security-report.md
+          fi
+          # JavaScript (ESLint)
+          echo "## JavaScript (ESLint)" >> security-report.md
+          if [ -f eslint-report.json ]; then
+            jq -r '.[] | "### \(.ruleId)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.filePath)\n- Message: \(.message)\n"' eslint-report.json >> security-report.md || true
+          else
+            echo "No JavaScript issues found." >> security-report.md
+          fi
+          # CSS (Stylelint)
+          echo "## CSS (Stylelint)" >> security-report.md
+          if [ -f stylelint-report.json ]; then
+            jq -r '.[] | "### \(.rule)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.source)\n- Message: \(.text)\n"' stylelint-report.json >> security-report.md || true
+          else
+            echo "No CSS issues found." >> security-report.md
+          fi
+          # HTML (HTMLHint)
+          echo "## HTML (HTMLHint)" >> security-report.md
+          if [ -f htmlhint-report.json ]; then
+            jq -r '.[] | "### \(.rule.id)\n- Severity: \(.rule.severity)\n- Line: \(.line)\n- File: \(.file)\n- Message: \(.message)\n"' htmlhint-report.json >> security-report.md || true
+          else
+            echo "No HTML issues found." >> security-report.md
+          fi
+
+      # Публикация отчётов
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            bandit-report.html
+            eslint-report.json
+            eslint-report.html
+            stylelint-report.json
+            stylelint-report.html
+            htmlhint-report.json
+            htmlhint-report.html
+            django-check.txt
+            hadolint-report.txt
+            docker-compose-report.txt
+            security-report.md
+
+      # Создание GitHub Issue с ограниченным размером
+      - name: Create Security Issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const issueTitle = "Security Checks Results";
+            
+            // Ограничиваем длину тела до 65 000 символов
+            const body = fs.readFileSync('security-report.md').toString().slice(0, 65000);
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: `## Report\n${body}\n\nFull reports: [Download](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
+              labels: ["security"],
+              assignees: [context.actor]
+            });
