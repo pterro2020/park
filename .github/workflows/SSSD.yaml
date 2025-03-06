@@ -24,12 +24,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Настройка прав доступа
-      - name: Set permissions for working directory
-        run: |
-          sudo chmod -R 777 $(pwd)
-          sudo chown -R 1000:1000 $(pwd)
-
       # Запуск Django-сервера с uWSGI
       - name: Start Django application with uWSGI
         run: |
@@ -37,14 +31,14 @@ jobs:
           nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
           sleep 20
-          echo "Django application started on http://127.0.0.1:8000"
+          echo "Django application started on http://localhost:8000"
 
       # Проверка доступности Django-сервера
       - name: Check if Django server is running
         run: |
           timeout=120
           while [ $timeout -gt 0 ]; do
-            curl -sL http://127.0.0.1:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
+            curl -sL http://localhost:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
             echo "Waiting for Django server to become available... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
@@ -62,28 +56,28 @@ jobs:
           cat django.log
 
       # Создание файла исключений zap-baseline.ignore
-      - name: Create zap-baseline.ignore file
-        run: |
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
-          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
-          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+  #    - name: Create zap-baseline.ignore file
+  #      run: |
+  #        echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
+  #        echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
+  #        echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
+  #        echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
+  #        echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
+  #        echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
 
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
         run: |
-          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
             -t http://localhost:8000/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
-            -l IGNORE \
+            -l INFO \  # Включаем все сообщения (INFO, WARN, FAIL)
             -i zap-baseline.ignore \
-            -x zap.xml || true
+            -x zap.xml
 
-      # Проверка JSON-отчета и преобразование в Markdown
+      # Проверка и преобразование JSON в Markdown
       - name: Convert JSON report to Markdown
         run: |
           if [ ! -f zap_report.json ]; then
@@ -91,7 +85,7 @@ jobs:
             exit 0
           fi
 
-          # Проверяем содержимое файла
+          # Выводим первые строки JSON для диагностики
           echo "First 10 lines of zap_report.json:"
           head -n 10 zap_report.json || true
 
@@ -99,16 +93,29 @@ jobs:
           echo "# ZAP Scan Results" > zap_report.md
           echo "" >> zap_report.md
 
-          # Проверяем существование секции alerts
+          # Добавляем разделы для всех типов сообщений
+          echo "## Alerts (Critical/High/Medium)" >> zap_report.md
           if jq -e '.alerts | length' zap_report.json >/dev/null; then
-            # Преобразуем JSON в Markdown, если alerts существует
-            jq -r '.alerts[] | "## Alert: \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
+            jq -r '.alerts[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
           else
-            # Добавляем сообщение, если alerts отсутствует
-            echo "No alerts found in the ZAP scan report." >> zap_report.md
+            echo "No critical/high/medium alerts found." >> zap_report.md
           fi
 
-          # Выводим содержимое Markdown-отчета
+          echo "## Warnings (Medium/Low)" >> zap_report.md
+          if jq -e '.warnings | length' zap_report.json >/dev/null; then
+            jq -r '.warnings[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
+          else
+            echo "No warnings found." >> zap_report.md
+          fi
+
+          echo "## Informational Messages" >> zap_report.md
+          if jq -e '.informational | length' zap_report.json >/dev/null; then
+            jq -r '.informational[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
+          else
+            echo "No informational messages found." >> zap_report.md
+          fi
+
+          # Выводим полный отчет
           cat zap_report.md
 
       # Публикация отчета
