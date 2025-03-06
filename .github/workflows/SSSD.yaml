@@ -43,9 +43,10 @@ jobs:
       - name: Run OWASP ZAP Baseline Scan
         run: |
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
-            zap-baseline.py \
+            zap-full-scan.py \
             -t http://localhost:8000/myparking/ \
             -J zap_report.json \
+            -w report_md \
             -g gen_file \
             -I \  # Игнорируем все предупреждения
 
