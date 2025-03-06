@@ -38,9 +38,9 @@ jobs:
 
       # Запуск OWASP ZAP
       - name: Run OWASP ZAP Full Scan
-      run: |
-        docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t --user root ghcr.io/zaproxy/zaproxy:latest \
-        zap-full-scan.py \
+        run: |
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t --user root ghcr.io/zaproxy/zaproxy:latest \
+          zap-full-scan.py \
           -t http://localhost:8000/myparking/ \
           -r zap_report.html \
           -J zap_report.json \
