@@ -39,25 +39,25 @@ jobs:
           sleep 30
           echo "Django application started on http://0.0.0.0:8000"
 
-      # Проверка доступности Django
-      - name: Check Django server availability
-        run: |
-          timeout=120
-          while [ $timeout -gt 0 ]; do
-            curl -sL http://localhost:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
-            echo "Waiting for Django server... ($timeout seconds left)"
-            sleep 5
-            timeout=$((timeout - 5))
-          done
-          if [ $timeout -le 0 ]; then
-            echo "Django server failed to start. Continuing anyway..."
-          fi
-
-      # Показать логи Django (всегда)
-      - name: Show Django logs
-        run: cat django.log || echo "Django logs not found"
-
-      # Создание файла исключений
+#      # Проверка доступности Django
+#      - name: Check Django server availability
+#        run: |
+#          timeout=120
+#          while [ $timeout -gt 0 ]; do
+#            curl -sL http://localhost:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
+#            echo "Waiting for Django server... ($timeout seconds left)"
+#            sleep 5
+#            timeout=$((timeout - 5))
+#          done
+#          if [ $timeout -le 0 ]; then
+#            echo "Django server failed to start. Continuing anyway..."
+#          fi
+#
+#      # Показать логи Django (всегда)
+#      - name: Show Django logs
+#        run: cat django.log || echo "Django logs not found"
+#
+#      # Создание файла исключений
 #      - name: Create zap-baseline.ignore file
 #        run: |
 #          echo "10010  # Cookie No HttpOnly Flag" > zap-baseline.ignore
