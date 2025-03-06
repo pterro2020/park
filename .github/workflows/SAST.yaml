@@ -9,34 +9,32 @@ jobs:
   build-and-sast:
     runs-on: ubuntu-latest
     steps:
-      # Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Установка Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      # Установка Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Установка зависимостей
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Устанавливаем ESLint, Stylelint, HTMLHint и необходимые плагины
-          npm install -g eslint@latest stylelint@latest htmlhint eslint-html-reporter bandit-html
+          # Устанавливаем SAST-инструменты для Python
+          pip install bandit
+          # Устанавливаем ESLint, Stylelint, HTMLHint для JS/CSS/HTML
+          npm install -g eslint@latest stylelint@latest htmlhint@latest eslint-html-reporter@latest
 
-      # Настройка конфигов для SAST
+      # Создаём конфиги для SAST-инструментов
       - name: Configure SAST tools
         run: |
-          # Создаём конфиг для ESLint (v9+)
+          # ESLint (v9+)
           echo 'export default [
             {
               rules: {
@@ -46,22 +44,24 @@ jobs:
             }
           ];' > eslint.config.js
 
-          # Создаём конфиг для Stylelint
+          # Stylelint
           echo '{
             "extends": "stylelint-config-standard"
           }' > .stylelintrc.json
 
-          # Создаём конфиг для HTMLHint
+          # HTMLHint
           echo '{
             "tagname-lowercase": true,
             "attr-lowercase": true
           }' > .htmlhintrc
 
-      # Запуск Django-сервера
-      - name: Start Django application
+      - name: Check Django migrations
         run: |
           python manage.py check --deploy
           python manage.py makemigrations --dry-run --check
+
+      - name: Start Django server
+        run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
 
@@ -69,30 +69,32 @@ jobs:
       - name: Run Bandit (Python)
         run: |
           bandit -r . -f json -o bandit-report.json || true
-          bandit-html -i bandit-report.json -o bandit-report.html || true  # Генерация HTML
+          # Генерация HTML-отчёта через Bandit
+          bandit -r . -f html -o bandit-report.html || true
 
       # SAST для JavaScript (ESLint)
       - name: Run ESLint (JavaScript)
         run: |
-          eslint . --ext .js,.jsx --format json -o eslint-report.json || true
-          eslint-html-reporter -i eslint-report.json -o eslint-report.html || true  # Генерация HTML
+          eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
+          # Генерация HTML-отчёта
+          eslint . --ext .js,.jsx --format html --output-file eslint-report.html || true
 
       # SAST для CSS (Stylelint)
       - name: Run Stylelint (CSS)
         run: |
           stylelint "**/*.{css,scss}" --formatter json > stylelint-report.json || true
-          stylelint "**/*.{css,scss}" --formatter html > stylelint-report.html || true  # Генерация HTML
+          stylelint "**/*.{css,scss}" --formatter html > stylelint-report.html || true
 
       # SAST для HTML (HTMLHint)
       - name: Run HTMLHint (HTML)
         run: |
-          htmlhint "**/*.html" --format json > htmlhint-report.json || true  # Исправлен формат
+          htmlhint "**/*.html" --format json > htmlhint-report.json || true
+          htmlhint "**/*.html" --format html > htmlhint-report.html || true
 
-      # Генерация объединённого Markdown-отчёта
+      # Генерация объединённого отчёта
       - name: Generate Combined SAST Report
         run: |
           echo "# SAST Scan Results" > sast-report.md
-          
           # Python (Bandit)
           echo "## Python (Bandit)" >> sast-report.md
           if [ -f bandit-report.json ]; then
@@ -100,7 +102,6 @@ jobs:
           else
             echo "No Python issues found." >> sast-report.md
           fi
-
           # JavaScript (ESLint)
           echo "## JavaScript (ESLint)" >> sast-report.md
           if [ -f eslint-report.json ]; then
@@ -108,7 +109,6 @@ jobs:
           else
             echo "No JavaScript issues found." >> sast-report.md
           fi
-
           # CSS (Stylelint)
           echo "## CSS (Stylelint)" >> sast-report.md
           if [ -f stylelint-report.json ]; then
@@ -116,7 +116,6 @@ jobs:
           else
             echo "No CSS issues found." >> sast-report.md
           fi
-
           # HTML (HTMLHint)
           echo "## HTML (HTMLHint)" >> sast-report.md
           if [ -f htmlhint-report.json ]; then
@@ -132,12 +131,13 @@ jobs:
           name: sast-reports
           path: |
             bandit-report.json
-            eslint-report.json
-            stylelint-report.json
-            htmlhint-report.json
             bandit-report.html
+            eslint-report.json
             eslint-report.html
+            stylelint-report.json
             stylelint-report.html
+            htmlhint-report.json
+            htmlhint-report.html
             sast-report.md
 
       # Создание GitHub Issue
@@ -150,22 +150,18 @@ jobs:
             const issueBody = `
               ## SAST Report
               Full reports: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-
               ### Python (Bandit)
               \`\`\`markdown
               ${fs.readFileSync('sast-report.md').toString().split('## JavaScript')[0] || 'No issues found'}
               \`\`\`
-
               ### JavaScript (ESLint)
               \`\`\`markdown
               ${fs.readFileSync('sast-report.md').toString().match(/## JavaScript.*?(?=## CSS)/s)[0] || 'No issues found'}
               \`\`\`
-
               ### CSS (Stylelint)
               \`\`\`markdown
               ${fs.readFileSync('sast-report.md').toString().match(/## CSS.*?(?=## HTML)/s)[0] || 'No issues found'}
               \`\`\`
-
               ### HTML (HTMLHint)
               \`\`\`markdown
               ${fs.readFileSync('sast-report.md').toString().match(/## HTML.*$/s)[0] || 'No issues found'}
