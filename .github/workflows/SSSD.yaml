@@ -58,19 +58,19 @@ jobs:
         run: cat django.log || echo "Django logs not found"
 
       # Создание файла исключений
-      - name: Create zap-baseline.ignore file
-        run: |
-          echo "10010  # Cookie No HttpOnly Flag" > zap-baseline.ignore
-          echo "10017  # Cross-Domain JavaScript Source File Inclusion" >> zap-baseline.ignore
-          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
-          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
-          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
-          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
-          echo "10112  # Session Management Response Identified" >> zap-baseline.ignore
-          echo "10111  # Authentication Request Identified" >> zap-baseline.ignore
-          echo "10031  # User Controllable HTML Element Attribute (Potential XSS)" >> zap-baseline.ignore
-          echo "10036  # Server Leaks Version Information via 'Server' Header" >> zap-baseline.ignore
-          echo "10049  # Storable and Cacheable Content" >> zap-baseline.ignore
+#      - name: Create zap-baseline.ignore file
+#        run: |
+#          echo "10010  # Cookie No HttpOnly Flag" > zap-baseline.ignore
+#          echo "10017  # Cross-Domain JavaScript Source File Inclusion" >> zap-baseline.ignore
+#          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
+#          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+#          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
+#          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
+#          echo "10112  # Session Management Response Identified" >> zap-baseline.ignore
+#          echo "10111  # Authentication Request Identified" >> zap-baseline.ignore
+#          echo "10031  # User Controllable HTML Element Attribute (Potential XSS)" >> zap-baseline.ignore
+#          echo "10036  # Server Leaks Version Information via 'Server' Header" >> zap-baseline.ignore
+#          echo "10049  # Storable and Cacheable Content" >> zap-baseline.ignore
 
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
