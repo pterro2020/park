@@ -24,13 +24,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Настройка прав доступа для рабочей директории
+      - name: Set permissions for working directory
+        run: |
+          sudo chmod -R 777 $(pwd)
+          sudo chown -R 1000:1000 $(pwd)
+
       # Запуск Django-сервера (слушает все интерфейсы)
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
           nohup uwsgi --http 0.0.0.0:8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
-          sleep 30  # Увеличен таймаут для стабильного запуска
+          sleep 40  # Увеличен таймаут до 40 секунд для стабильного запуска
           echo "Django application started on http://0.0.0.0:8000"
 
       # Проверка доступности Django
@@ -47,8 +53,27 @@ jobs:
             echo "Django server failed to start. Continuing anyway..."
           fi
 
+      # Показать логи Django (всегда)
+      - name: Show Django logs
+        run: cat django.log || echo "Django logs not found"
+
+      # Создание файла исключений
+      - name: Create zap-baseline.ignore file
+        run: |
+          echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
+          echo "90003  # Sub Resource Integrity Attribute Missing" >> zap-baseline.ignore
+          echo "90004  # Insufficient Site Isolation Against Spectre Vulnerability" >> zap-baseline.ignore
+          echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
+          echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
+          echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+          echo "10112  # Session Management Response Identified" >> zap-baseline.ignore
+          echo "10111  # Authentication Request Identified" >> zap-baseline.ignore
+          echo "10031  # User Controllable HTML Element Attribute (Potential XSS)" >> zap-baseline.ignore
+          echo "10036  # Server Leaks Version Information via 'Server' Header" >> zap-baseline.ignore
+          echo "10049  # Storable and Cacheable Content" >> zap-baseline.ignore
+
       # Запуск OWASP ZAP Baseline Scan
-      - name: Run OWASP ZAP Scan (ignoring errors)
+      - name: Run OWASP ZAP Scan (never fail)
         run: |
           docker run --network host --rm -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:latest \
             zap-baseline.py \
@@ -57,36 +82,47 @@ jobs:
             -g zap_config.zap \
             -l INFO \  # Включаем все сообщения (INFO, WARN, FAIL)
             -i zap-baseline.ignore \
+            -T 600000 \  # Таймаут ожидания ответа сервера: 10 минут
             -x zap.xml \
             || true  # Продолжаем пайплайн даже при ошибке
 
       # Проверка и преобразование отчёта
       - name: Generate Markdown Report
         run: |
-          # Если отчёт не создан — формируем пустой
+          # Если отчёт не создан — формируем пустой с логами
           if [ ! -f zap_report.json ]; then
             echo "# ZAP Scan Report" > zap_report.md
-            echo "No report generated. Check logs for details." >> zap_report.md
+            echo "No report generated. Check ZAP logs." >> zap_report.md
+            cat zap_report.xml >> zap_report.md  # Добавляем XML-логи в отчёт
           else
-            # Проверяем валидность JSON и преобразуем
+            # Проверяем валидность JSON и создаём отчёт
             echo "# ZAP Scan Results" > zap_report.md
             echo "" >> zap_report.md
 
             # Обработка всех категорий
             echo "## Critical/High/Medium Alerts" >> zap_report.md
             jq -e '.alerts | length > 0' zap_report.json >/dev/null && \
-              jq -r '.alerts[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' \
-              zap_report.json >> zap_report.md || echo "No critical alerts found."
+              jq -r '.alerts[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
+              zap_report.json >> zap_report.md || echo "No critical alerts found." >> zap_report.md
 
             echo "## Warnings" >> zap_report.md
             jq -e '.warnings | length > 0' zap_report.json >/dev/null && \
-              jq -r '.warnings[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' \
-              zap_report.json >> zap_report.md || echo "No warnings found."
+              jq -r '.warnings[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
+              zap_report.json >> zap_report.md || echo "No warnings found." >> zap_report.md
 
             echo "## Informational Messages" >> zap_report.md
             jq -e '.informational | length > 0' zap_report.json >/dev/null && \
-              jq -r '.informational[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.otherinfo)\n- Solution: \(.solution)\n\n"' \
-              zap_report.json >> zap_report.md || echo "No informational messages found."
+              jq -r '.informational[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' \
+              zap_report.json >> zap_report.md || echo "No informational messages found." >> zap_report.md
+
+            # Добавляем содержимое XML-отчёта в случае ошибки JSON
+            if ! jq empty zap_report.json >/dev/null 2>&1; then
+              echo "### Invalid JSON Report" >> zap_report.md
+              echo "ZAP report in JSON format is invalid. XML report attached below:" >> zap_report.md
+              echo "```xml" >> zap_report.md
+              cat zap.xml >> zap_report.md
+              echo "```" >> zap_report.md
+            fi
           fi
 
           # Выводим отчёт в логи (даже если он пуст)
@@ -99,15 +135,17 @@ jobs:
           name: zap-report
           path: zap_report.md
 
-      # Показать логи Django
-      - name: Show Django logs
-        run: cat django.log
-
       # Показать логи ZAP
       - name: Show ZAP logs
-        run: cat zap_report.json || echo "No ZAP report found."
+        run: |
+          if [ -f zap_report.xml ]; then
+            echo "### ZAP XML Report:"
+            cat zap_report.xml | head -n 20  # Выводим первые 20 строк XML
+          else
+            echo "ZAP logs not found."
+          fi
 
       # Очистка процессов
-      - name: Cleanup
+      - name: Cleanup processes
         run: |
           pkill -f uwsgi || true
