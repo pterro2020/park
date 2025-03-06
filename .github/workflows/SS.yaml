@@ -17,10 +17,21 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      # Install SAST tools for multiple languages
+      - name: Install SAST tools
+        run: |
+          pip install bandit
+          npm install -g eslint stylelint htmlhint eslint-html-reporter
 
       - name: Check Django migrations
         run: |
@@ -32,25 +43,60 @@ jobs:
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
 
-      - name: Install Bandit for Python SAST
-        run: |
-          pip install bandit
-
-      - name: Run Bandit (Python) for SAST
+      # Python SAST with Bandit
+      - name: Run Bandit (Python)
         run: |
           bandit -r . -f json -o bandit-report.json || true
 
-      - name: Extract critical issues from Bandit report
+      # JavaScript SAST with ESLint
+      - name: Run ESLint (JavaScript)
         run: |
-          jq '[.results[] | select(.issue_severity == "HIGH")]' bandit-report.json > critical-bandit-report.json
+          eslint . --ext .js,.jsx -f json -o eslint-report.json || true
 
-      - name: Generate SAST Report in Markdown
+      # CSS SAST with Stylelint
+      - name: Run Stylelint (CSS)
         run: |
-          echo "# SAST Scan Results (Critical Issues)" > sast-report.md
-          echo "" >> sast-report.md
-          echo "Below are the critical issues found during the SAST scan:" >> sast-report.md
-          echo "" >> sast-report.md
-          jq -r '.[] | "## Issue: \(.test_id) - \(.issue_text)\n\n- Severity: \(.issue_severity)\n- Confidence: \(.issue_confidence)\n- Filename: \(.filename)\n- Line: \(.line_number)\n\n"' critical-bandit-report.json >> sast-report.md
+          stylelint "**/*.{css,scss}" --formatter json > stylelint-report.json || true
+
+      # HTML SAST with HTMLHint
+      - name: Run HTMLHint (HTML)
+        run: |
+          htmlhint --format json -o htmlhint-report.json "**/*.html" || true
+
+      # Generate HTML reports
+      - name: Generate HTML reports
+        run: |
+          # ESLint HTML report
+          eslint-html-reporter -i eslint-report.json -o eslint-report.html
+          
+          # Bandit HTML report (using custom script)
+          python -c "
+          import json
+          with open('bandit-report.json') as f:
+              data = json.load(f)
+          html = '<html><body><h1>Bandit Report</h1><ul>'
+          for result in data['results']:
+              html += f'<li>{result["issue_text"]} ({result["issue_severity"]}) in {result["filename"]}:{result["line_number"]}</li>'
+          html += '</ul></body></html>'
+          with open('bandit-report.html', 'w') as f:
+              f.write(html)
+          "
+
+      # Combine reports into single markdown
+      - name: Generate Combined SAST Report
+        run: |
+          echo "# Combined SAST Report" > combined-sast-report.md
+          echo "## Python (Bandit)" >> combined-sast-report.md
+          jq -r '.results[] | "### \(.test_id)\n- Severity: \(.issue_severity)\n- Line: \(.line_number)\n- File: \(.filename)\n- Issue: \(.issue_text)\n"' bandit-report.json >> combined-sast-report.md
+          
+          echo "## JavaScript (ESLint)" >> combined-sast-report.md
+          jq -r '.[] | "### \(.ruleId)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.filePath)\n- Message: \(.message)\n"' eslint-report.json >> combined-sast-report.md
+          
+          echo "## CSS (Stylelint)" >> combined-sast-report.md
+          jq -r '.[] | "### \(.rule)\n- Severity: \(.severity)\n- Line: \(.line)\n- File: \(.source)\n- Message: \(.text)\n"' stylelint-report.json >> combined-sast-report.md
+          
+          echo "## HTML (HTMLHint)" >> combined-sast-report.md
+          jq -r '.[] | "### \(.rule.id)\n- Severity: \(.rule.severity)\n- Line: \(.line)\n- File: \(.file)\n- Message: \(.message)\n"' htmlhint-report.json >> combined-sast-report.md
 
       - name: Upload SAST reports as artifact
         if: always()
@@ -59,36 +105,48 @@ jobs:
           name: sast-reports
           path: |
             bandit-report.json
-            critical-bandit-report.json
-            sast-report.md
+            eslint-report.json
+            stylelint-report.json
+            htmlhint-report.json
+            bandit-report.html
+            eslint-report.html
+            combined-sast-report.md
 
-      - name: Create SAST Issue with Markdown report
+      - name: Create SAST Issue with Report
         if: always()
         uses: actions/github-script@v6
         with:
           script: |
-            const issueTitle = "SAST Scan Results (Critical Issues)";
+            const issueTitle = "Security Scan Results";
             const issueBody = `
-              Below are the critical issues found during the SAST scan:
-
-              Full report: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
-
+              ## SAST Scan Results
+              Full reports available as artifacts: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+              
+              ### Python (Bandit)
               \`\`\`markdown
-              $(fs.readFileSync('sast-report.md').toString())
+              $(cat combined-sast-report.md | grep -A 5 'Python (Bandit)')
+              \`\`\`
+
+              ### JavaScript (ESLint)
+              \`\`\`markdown
+              $(cat combined-sast-report.md | grep -A 5 'JavaScript (ESLint)')
+              \`\`\`
+
+              ### CSS (Stylelint)
+              \`\`\`markdown
+              $(cat combined-sast-report.md | grep -A 5 'CSS (Stylelint)')
+              \`\`\`
+
+              ### HTML (HTMLHint)
+              \`\`\`markdown
+              $(cat combined-sast-report.md | grep -A 5 'HTML (HTMLHint)')
               \`\`\`
             `;
-            const labels = ["sast", "security"];
-            const assignees = [context.payload.sender.login];
-
-            const issue = {
-              title: issueTitle,
-              body: issueBody,
-              labels: labels,
-              assignees: assignees
-            };
-
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ...issue
+              title: issueTitle,
+              body: issueBody,
+              labels: ["security", "sast"],
+              assignees: [context.actor]
             });
