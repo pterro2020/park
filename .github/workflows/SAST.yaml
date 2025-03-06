@@ -9,58 +9,66 @@ jobs:
   build-and-sast:
     runs-on: ubuntu-latest
     steps:
+      # Клонирование репозитория
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Установка Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
+      # Установка Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      # Установка зависимостей
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           # Устанавливаем SAST-инструменты для Python
           pip install bandit
-          # Устанавливаем ESLint, Stylelint, HTMLHint для JS/CSS/HTML
-          npm install -g eslint@latest stylelint@latest htmlhint@latest eslint-html-reporter@latest
 
-      # Создаём конфиги для SAST-инструментов
-      - name: Configure SAST tools
+      # Установка ESLint и зависимостей
+      - name: Install ESLint and HTML reporter
         run: |
-          # ESLint (v9+)
-          echo 'export default [
-            {
-              rules: {
+          npm install -g eslint@latest eslint-html-reporter@latest
+
+      # Установка Stylelint и конфига
+      - name: Install Stylelint
+        run: |
+          npm install -g stylelint@latest stylelint-config-standard
+
+      # Установка HTMLHint
+      - name: Install HTMLHint
+        run: |
+          npm install -g htmlhint@latest
+
+      # Настройка ESLint конфига (ES-модуль)
+      - name: Configure ESLint
+        run: |
+          echo '{
+            "type": "module",
+            "default": {
+              "rules": {
                 "no-console": "warn",
                 "no-debugger": "error"
               }
             }
-          ];' > eslint.config.js
+          }' > .eslintrc.json
 
-          # Stylelint
-          echo '{
-            "extends": "stylelint-config-standard"
-          }' > .stylelintrc.json
-
-          # HTMLHint
-          echo '{
-            "tagname-lowercase": true,
-            "attr-lowercase": true
-          }' > .htmlhintrc
-
+      # Проверка миграций Django
       - name: Check Django migrations
         run: |
           python manage.py check --deploy
           python manage.py makemigrations --dry-run --check
 
-      - name: Start Django server
+      # Запуск Django-сервера
+      - name: Start Django application
         run: |
           python manage.py runserver 0.0.0.0:8000 &
           sleep 10
@@ -69,7 +77,6 @@ jobs:
       - name: Run Bandit (Python)
         run: |
           bandit -r . -f json -o bandit-report.json || true
-          # Генерация HTML-отчёта через Bandit
           bandit -r . -f html -o bandit-report.html || true
 
       # SAST для JavaScript (ESLint)
@@ -82,14 +89,13 @@ jobs:
       # SAST для CSS (Stylelint)
       - name: Run Stylelint (CSS)
         run: |
-          stylelint "**/*.{css,scss}" --formatter json > stylelint-report.json || true
-          stylelint "**/*.{css,scss}" --formatter html > stylelint-report.html || true
+          stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
+          stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
 
       # SAST для HTML (HTMLHint)
       - name: Run HTMLHint (HTML)
         run: |
-          htmlhint "**/*.html" --format json > htmlhint-report.json || true
-          htmlhint "**/*.html" --format html > htmlhint-report.html || true
+          htmlhint "**/*.html" --format json --output htmlhint-report.json || true
 
       # Генерация объединённого отчёта
       - name: Generate Combined SAST Report
@@ -137,10 +143,9 @@ jobs:
             stylelint-report.json
             stylelint-report.html
             htmlhint-report.json
-            htmlhint-report.html
             sast-report.md
 
-      # Создание GitHub Issue
+      # Создание GitHub Issue с кратким отчётом
       - name: Create SAST Issue
         uses: actions/github-script@v6
         with:
@@ -171,7 +176,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: issueTitle,
-              body: issueBody,
+              body: issueBody.slice(0, 65000),  // Ограничение длины
               labels: ["security", "sast"],
               assignees: [context.actor]
             });
