@@ -50,12 +50,6 @@ jobs:
             -r zap_report.html \
             -J zap_report.json \
             -w report_md.md \
-            --auth_username your_username \
-            --auth_password your_password \
-            --auth_login_url http://localhost:8000/accounts/login/ \
-            --auth_username_field username \
-            --auth_password_field password \
-            --auth_submit_field submit \
             --thread 5 \
             || echo "ZAP scan completed with warnings or errors."
 
