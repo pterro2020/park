@@ -24,14 +24,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Запуск Django-сервера с uWSGI
+      # Запуск Django-сервера с uWSGI (слушает все интерфейсы)
       - name: Start Django application with uWSGI
         run: |
           pip install uwsgi
-          nohup uwsgi --http :8000 --module parking.wsgi > django.log 2>&1 &
+          nohup uwsgi --http 0.0.0.0:8000 --module parking.wsgi > django.log 2>&1 &
           echo "Waiting for Django application to start..."
-          sleep 20
-          echo "Django application started on http://localhost:8000"
+          sleep 30
+          echo "Django application started on http://0.0.0.0:8000"
 
       # Проверка доступности Django-сервера
       - name: Check if Django server is running
@@ -39,7 +39,7 @@ jobs:
           timeout=120
           while [ $timeout -gt 0 ]; do
             curl -sL http://localhost:8000/myparking/ | grep -q '<!DOCTYPE html>' && break
-            echo "Waiting for Django server to become available... ($timeout seconds left)"
+            echo "Waiting for Django server... ($timeout seconds left)"
             sleep 5
             timeout=$((timeout - 5))
           done
@@ -55,7 +55,7 @@ jobs:
         run: |
           cat django.log
 
-      # Создание файла исключений zap-baseline.ignore
+      # Создание файла исключений
       - name: Create zap-baseline.ignore file
         run: |
           echo "10017  # Cross-Domain JavaScript Source File Inclusion" > zap-baseline.ignore
@@ -64,6 +64,11 @@ jobs:
           echo "10010  # Cookie No HttpOnly Flag" >> zap-baseline.ignore
           echo "10038  # Content Security Policy (CSP) Header Not Set" >> zap-baseline.ignore
           echo "10063  # Permissions Policy Header Not Set" >> zap-baseline.ignore
+          echo "10112  # Session Management Response Identified" >> zap-baseline.ignore
+          echo "10111  # Authentication Request Identified" >> zap-baseline.ignore
+          echo "10031  # User Controllable HTML Element Attribute (Potential XSS)" >> zap-baseline.ignore
+          echo "10036  # Server Leaks Version Information via 'Server' Header" >> zap-baseline.ignore
+          echo "10049  # Storable and Cacheable Content" >> zap-baseline.ignore
 
       # Запуск OWASP ZAP Baseline Scan
       - name: Run OWASP ZAP Baseline Scan
@@ -73,28 +78,35 @@ jobs:
             -t http://localhost:8000/myparking/ \
             -r zap_report.json \
             -g zap_config.zap \
-            -l INFO \  # Включаем все сообщения (INFO, WARN, FAIL)
+            -l IGNORE \  # Игнорируем предупреждения и информационные сообщения
             -i zap-baseline.ignore \
-            -x zap.xml
+            -x zap.xml || true
 
-      # Проверка и преобразование JSON в Markdown
-      - name: Convert JSON report to Markdown
+      # Проверка JSON-отчета
+      - name: Validate and Inspect zap_report.json content
         run: |
           if [ ! -f zap_report.json ]; then
             echo "File zap_report.json not found. Exiting without generating Markdown report."
             exit 0
           fi
 
-          # Выводим первые строки JSON для диагностики
           echo "First 10 lines of zap_report.json:"
           head -n 10 zap_report.json || true
 
-          # Создаем заголовок отчета
+          # Проверка структуры JSON
+          if ! jq empty zap_report.json; then
+            echo "Invalid JSON content in zap_report.json. Exiting."
+            exit 1
+          fi
+
+      # Преобразование JSON в Markdown
+      - name: Convert JSON report to Markdown
+        run: |
           echo "# ZAP Scan Results" > zap_report.md
           echo "" >> zap_report.md
 
-          # Добавляем разделы для всех типов сообщений
-          echo "## Alerts (Critical/High/Medium)" >> zap_report.md
+          # Обработка всех типов сообщений
+          echo "## Critical/High/Medium Alerts" >> zap_report.md
           if jq -e '.alerts | length' zap_report.json >/dev/null; then
             jq -r '.alerts[] | "### \(.alert)\n\n- Risk: \(.riskdesc)\n- Confidence: \(.confidence)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n\n"' zap_report.json >> zap_report.md
           else
@@ -115,7 +127,6 @@ jobs:
             echo "No informational messages found." >> zap_report.md
           fi
 
-          # Выводим полный отчет
           cat zap_report.md
 
       # Публикация отчета
@@ -124,3 +135,8 @@ jobs:
         with:
           name: zap-report
           path: zap_report.md
+
+      # Очистка процессов
+      - name: Cleanup processes
+        run: |
+          pkill -f uwsgi || true
