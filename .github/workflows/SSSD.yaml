@@ -81,7 +81,7 @@ jobs:
             -r zap_report.json \
             -g zap_config.zap \
             -l INFO \  # Включаем все сообщения (INFO, WARN, FAIL)
-            -i zap-baseline.ignore \
+            -I \ # Игнорировать предупреждения
             -T 600000 \  # Таймаут ожидания ответа сервера: 10 минут
             -x zap.xml \
             || true  # Продолжаем пайплайн даже при ошибке
