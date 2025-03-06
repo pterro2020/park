@@ -53,7 +53,7 @@ jobs:
             -w report_md.md \
             -z "-config scanner.threadPerHost=1" \
             -I \  # Корректный флаг для игнорирования предупреждений
-            || echo "ZAP scan completed with warnings."
+            | echo "ZAP scan completed with warnings."
 
       # Генерация отчёта
       - name: Generate Markdown Report
