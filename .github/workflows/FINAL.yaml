@@ -7,9 +7,9 @@ on:
 
 jobs:
   #######################################
-  # SAST: Статический анализ кода
+  # BUILD: Установка зависимостей
   #######################################
-  sast-scan:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -25,10 +25,41 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install tools
+      - name: Install system tools
         run: |
+          sudo apt-get install -y jq  # Для обработки JSON
+          pip install pip-tools  # Для управления зависимостями
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
           pip install bandit
-          npm install -g eslint@latest stylelint@latest htmlhint@latest
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Node.js tools
+        run: |
+          npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest
+
+  #######################################
+  # SAST: Статический анализ кода
+  #######################################
+  sast-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Configure ESLint
         run: |
@@ -61,14 +92,17 @@ jobs:
       - name: Run ESLint (JavaScript)
         run: |
           eslint . --ext .js,.jsx --format json --output-file eslint-report.json || true
+          eslint-html-reporter -i eslint-report.json -o eslint-report.html || true
 
       - name: Run Stylelint (CSS)
         run: |
           stylelint "**/*.{css,scss}" --formatter json --output-file stylelint-report.json || true
+          stylelint "**/*.{css,scss}" --formatter html --output-file stylelint-report.html || true
 
       - name: Run HTMLHint (HTML)
         run: |
           htmlhint "**/*.html" --format json --output htmlhint-report.json || true
+          htmlhint "**/*.html" --format html --output htmlhint-report.html || true
 
       - name: Generate SAST Report
         run: |
@@ -107,40 +141,155 @@ jobs:
         with:
           name: sast-reports
           path: |
-            bandit-report.*  # Все файлы Bandit
-            eslint-report.*  # Все файлы ESLint
-            stylelint-report.*  # Все файлы Stylelint
-            htmlhint-report.*  # Все файлы HTMLHint
-            sast-report.md  # Итоговый отчёт
+            bandit-report.*
+            eslint-report.*
+            stylelint-report.*
+            htmlhint-report.*
+            sast-report.md
 
   #######################################
-  # REPORT: Итоговая публикация
+  # DAST: Динамическое сканирование
+  #######################################
+  dast-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install uwsgi
+
+      - name: Start Django
+        run: |
+          nohup uwsgi --http 0.0.0.0:8000 --module parking.wsgi --workers 2 --threads 1 > django.log 2>&1 &
+          echo "Waiting for server..."
+          until curl -s http://localhost:8000/myparking/; do
+            sleep 10
+          done
+
+      - name: Run OWASP ZAP
+        run: |
+          docker run --network host --rm -v $(pwd):/zap/wrk/:rw,z -t --user root ghcr.io/zaproxy/zaproxy:latest \
+            zap-full-scan.py \
+            -t http://localhost:8000/myparking/ \
+            -r zap_report.html \
+            -J zap_report.json \
+            -w zap_report.md \
+            -z "-config scanner.threadPerHost=1" \
+            -I || echo "ZAP scan completed with warnings."
+
+      - name: Generate DAST Report
+        run: |
+          echo "# DAST Scan Results" > dast-report.md
+          if [ -f zap_report.json ]; then
+            jq -r '.alerts[] | "### \(.alert)\n- Risk: \(.riskdesc)\n- URL: \(.url)\n- Description: \(.desc)\n- Solution: \(.solution)\n"' zap_report.json >> dast-report.md || true
+          else
+            echo "No DAST issues found." >> dast-report.md
+          fi
+
+      - name: Upload DAST Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-reports
+          path: |
+            zap_report.*
+            dast-report.md
+            django.log
+
+  #######################################
+  # SECURITY CHECKS: Проверка конфигураций
+  #######################################
+  security-checks:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dockerfile Linting
+        if: hashFiles('Dockerfile') != ''
+        run: |
+          docker run --rm -v $(pwd):/app hadolint/hadolint hadolint Dockerfile > hadolint-report.txt || true
+
+      - name: Docker Compose Validation
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          docker-compose -f docker-compose.yml config > /dev/null || true
+          echo "Docker Compose valid." > docker-compose-report.txt
+
+      - name: Django Security Checks
+        run: |
+          python manage.py check --deploy 2>&1 | tee django-security.txt || true
+
+      - name: Generate Security Report
+        run: |
+          echo "# Security Configuration Checks" > security-config-report.md
+          # Docker
+          echo "## Docker" >> security-config-report.md
+          cat hadolint-report.txt >> security-config-report.md || echo "No Dockerfile found." >> security-config-report.md
+          cat docker-compose-report.txt >> security-config-report.md || echo "No docker-compose.yml found." >> security-config-report.md
+          # Django
+          echo "## Django" >> security-config-report.md
+          cat django-security.txt >> security-config-report.md || echo "No Django issues found." >> security-config-report.md
+
+      - name: Upload Security Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-config-reports
+          path: |
+            hadolint-report.txt
+            docker-compose-report.txt
+            django-security.txt
+            security-config-report.md
+
+  #######################################
+  # REPORT: Итоговая публикация результатов
   #######################################
   report:
     runs-on: ubuntu-latest
-    needs: [sast-scan]
+    needs: [sast-scan, dast-scan, security-checks]
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts  # Все артефакты сохраняются в папку artifacts
+          path: artifacts
 
       - name: Debug Artifacts
         run: |
           ls -R artifacts  # Проверка структуры файлов
-          cat artifacts/sast-reports/bandit-report.json  # Проверка содержимого
+          echo "SAST Report exists? $(ls artifacts/sast-reports/sast-report.md 2>/dev/null || echo 'No')"
+          echo "DAST Report exists? $(ls artifacts/dast-reports/dast-report.md 2>/dev/null || echo 'No')"
+          echo "Security Config Report exists? $(ls artifacts/security-config-reports/security-config-report.md 2>/dev/null || echo 'No')"
 
-      - name: Create Security Issue
+      - name: Create GitHub Issue
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require('fs');
-            const sast = fs.readFileSync('artifacts/sast-reports/sast-report.md').toString().slice(0, 10000);
+            const path = require('path');
+
+            // Ограничиваем каждый раздел до 10KB (65KB total)
+            const sastPath = path.join('artifacts', 'sast-reports', 'sast-report.md');
+            const dastPath = path.join('artifacts', 'dast-reports', 'dast-report.md');
+            const securityPath = path.join('artifacts', 'security-config-reports', 'security-config-report.md');
+
+            const sast = fs.existsSync(sastPath) ? fs.readFileSync(sastPath).toString().slice(0, 10000) : 'No SAST report found.';
+            const dast = fs.existsSync(dastPath) ? fs.readFileSync(dastPath).toString().slice(0, 10000) : 'No DAST report found.';
+            const security = fs.existsSync(securityPath) ? fs.readFileSync(securityPath).toString().slice(0, 10000) : 'No Security report found.';
+
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: "Security Report",
-              body: `# SAST Results\n\n${sast}\n\n[Full reports](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
+              title: "Security Scan Summary",
+              body: `# Security Report\n\n## SAST\n${sast}\n\n## DAST\n${dast}\n\n## Config Checks\n${security}\n\n[Full reports](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
               labels: ["security"],
               assignees: [context.actor]
             });
