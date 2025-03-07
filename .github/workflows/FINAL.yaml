@@ -249,19 +249,24 @@ jobs:
             docker-compose-report.txt
             django-security.txt
             security-config-report.md
-
-#####################################################
-# security-gateway # Проверка на уязвимости "CRITICAL"
-#####################################################
+  
+  #######################################
+  # SECURITY GATEWAY: Блокировка релиза
+  #######################################
   security-gateway:
     runs-on: ubuntu-latest
     needs: [sast-scan, dast-scan]
-    if: always()
+    if: always()  # Выполняется даже при провале предыдущих шагов
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Debug DAST Report
+        run: |
+          echo "Содержимое zap_report.json:"
+          cat artifacts/dast-reports/zap_report.json || echo "Файл не найден"
 
       - name: Check SAST Critical Issues
         id: sast-check
@@ -277,17 +282,36 @@ jobs:
         id: dast-check
         run: |
           if [ -f artifacts/dast-reports/zap_report.json ]; then
-            HIGH_ALERTS=$(jq -r '[.alerts[] | select(.riskdesc | contains("High") or contains("Critical"))] | length' artifacts/dast-reports/zap_report.json)
+            # Используем оператор ? для обработки null и упрощённый синтаксис
+            HIGH_ALERTS=$(jq -r '.alerts? // [] | map(select(.riskdesc | test("High|Critical"))) | length' artifacts/dast-reports/zap_report.json)
           else
             HIGH_ALERTS=0
           fi
           echo "high_alerts=$HIGH_ALERTS" >> $GITHUB_ENV
 
-      - name: Fail on Critical Vulnerabilities
+      - name: Block Release on Critical Issues
         if: env.high_issues > 0 || env.high_alerts > 0
         run: |
           echo "Обнаружены критические уязвимости. Релиз заблокирован."
           exit 1
+
+      - name: Create Security Issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const sast = fs.existsSync('artifacts/sast-reports/sast-report.md') ? fs.readFileSync('artifacts/sast-reports/sast-report.md').toString().slice(0, 10000) : 'No SAST report found.';
+            const dast = fs.existsSync('artifacts/dast-reports/dast-report.md') ? fs.readFileSync('artifacts/dast-reports/dast-report.md').toString().slice(0, 10000) : 'No DAST report found.';
+            const security = fs.existsSync('artifacts/security-config-reports/security-config-report.md') ? fs.readFileSync('artifacts/security-config-reports/security-config-report.md').toString().slice(0, 10000) : 'No Security report found.';
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Security Report",
+              body: `# Security Summary\n\n## SAST\n${sast}\n\n## DAST\n${dast}\n\n## Config Checks\n${security}\n\n[Full reports](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
+              labels: ["security"],
+              assignees: [context.actor]
+            });
 
   #######################################
   # REPORT: Итоговая публикация результатов
