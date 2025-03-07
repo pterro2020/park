@@ -250,6 +250,45 @@ jobs:
             django-security.txt
             security-config-report.md
 
+#####################################################
+# security-gateway # Проверка на уязвимости "CRITICAL"
+#####################################################
+  security-gateway:
+    runs-on: ubuntu-latest
+    needs: [sast-scan, dast-scan]
+    if: always()
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Check SAST Critical Issues
+        id: sast-check
+        run: |
+          if [ -f artifacts/sast-reports/bandit-report.json ]; then
+            HIGH_ISSUES=$(jq -r '[.results[] | select(.issue_severity == "HIGH")] | length' artifacts/sast-reports/bandit-report.json)
+          else
+            HIGH_ISSUES=0
+          fi
+          echo "high_issues=$HIGH_ISSUES" >> $GITHUB_ENV
+
+      - name: Check DAST Critical Issues
+        id: dast-check
+        run: |
+          if [ -f artifacts/dast-reports/zap_report.json ]; then
+            HIGH_ALERTS=$(jq -r '[.alerts[] | select(.riskdesc | contains("High") or contains("Critical"))] | length' artifacts/dast-reports/zap_report.json)
+          else
+            HIGH_ALERTS=0
+          fi
+          echo "high_alerts=$HIGH_ALERTS" >> $GITHUB_ENV
+
+      - name: Fail on Critical Vulnerabilities
+        if: env.high_issues > 0 || env.high_alerts > 0
+        run: |
+          echo "Обнаружены критические уязвимости. Релиз заблокирован."
+          exit 1
+
   #######################################
   # REPORT: Итоговая публикация результатов
   #######################################
