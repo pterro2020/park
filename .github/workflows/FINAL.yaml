@@ -7,9 +7,9 @@ on:
 
 jobs:
   #######################################
-  # BUILD: Установка зависимостей
+  # SAST: Статический анализ кода
   #######################################
-  build:
+  sast-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -25,35 +25,26 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Python dependencies
+      - name: Install Python tools
         run: |
-          pip install -r requirements.txt
           pip install bandit
 
       - name: Install Node.js tools
         run: |
           npm install -g eslint@latest eslint-html-reporter@latest stylelint@latest stylelint-config-standard htmlhint@latest
 
-  #######################################
-  # SAST: Статический анализ
-  #######################################
-  sast-scan:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Configure ESLint
         run: |
           echo '{
             "type": "module",
-            "rules": {
-              "no-console": "warn",
-              "no-debugger": "error"
+            "default": {
+              "rules": {
+                "no-console": "warn",
+                "no-debugger": "error"
+              }
             }
           }' > .eslintrc.json
-          echo '{"type": "module"}' > package.json  # Для ES-модулей
+          echo '{"type": "module"}' > package.json
 
       - name: Configure Stylelint
         run: |
@@ -136,7 +127,7 @@ jobs:
   #######################################
   dast-scan:
     runs-on: ubuntu-latest
-    needs: build
+    needs: sast-scan
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -154,7 +145,6 @@ jobs:
       - name: Start Django
         run: |
           nohup uwsgi --http 0.0.0.0:8000 --module parking.wsgi --workers 2 --threads 1 > django.log 2>&1 &
-          echo "Waiting for server..."
           until curl -s http://localhost:8000/myparking/; do
             sleep 5
           done
@@ -166,7 +156,7 @@ jobs:
             -t http://localhost:8000/myparking/ \
             -r zap_report.html \
             -J zap_report.json \
-            -w report_md.md \
+            -w zap_report.md \
             -z "-config scanner.threadPerHost=1" \
             -I || echo "ZAP scan completed with warnings."
 
@@ -185,7 +175,7 @@ jobs:
           name: dast-reports
           path: |
             zap_report.*
-            report_md.md
+            dast-report.md
             django.log
 
   #######################################
@@ -193,7 +183,7 @@ jobs:
   #######################################
   security-checks:
     runs-on: ubuntu-latest
-    needs: build
+    needs: sast-scan
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -217,12 +207,11 @@ jobs:
         run: |
           echo "# Security Configuration Checks" > security-config-report.md
           # Docker
-          echo "## Dockerfile Linting" >> security-config-report.md
+          echo "## Docker" >> security-config-report.md
           cat hadolint-report.txt >> security-config-report.md || echo "No Dockerfile found." >> security-config-report.md
-          echo "## Docker Compose" >> security-config-report.md
           cat docker-compose-report.txt >> security-config-report.md || echo "No docker-compose.yml found." >> security-config-report.md
           # Django
-          echo "## Django Warnings" >> security-config-report.md
+          echo "## Django" >> security-config-report.md
           cat django-security.txt >> security-config-report.md || echo "No Django issues found." >> security-config-report.md
 
       - name: Upload Security Artifacts
@@ -242,22 +231,27 @@ jobs:
     runs-on: ubuntu-latest
     needs: [sast-scan, dast-scan, security-checks]
     steps:
-      - name: Download SAST Reports
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: sast-reports
-          path: sast-reports
+          path: artifacts
 
-      - name: Check Critical SAST Issues
+      - name: Check SAST Critical Issues
         id: sast-check
         run: |
-          HIGH_ISSUES=$(jq -r '[.results[] | select(.issue_severity == "HIGH")] | length' sast-reports/bandit-report.json)
+          HIGH_ISSUES=$(jq -r '[.results[] | select(.issue_severity == "HIGH")] | length' artifacts/sast-reports/bandit-report.json)
           echo "high_issues=$HIGH_ISSUES" >> $GITHUB_ENV
 
-      - name: Block Release on Critical Issues
-        if: ${{ env.high_issues > 0 }}
+      - name: Check DAST Critical Issues
+        id: dast-check
         run: |
-          echo "Обнаружены критические уязвимости (SAST). Релиз заблокирован."
+          HIGH_ALERTS=$(jq -r '[.alerts[] | select(.riskdesc | contains("High"))] | length' artifacts/dast-reports/zap_report.json)
+          echo "high_alerts=$HIGH_ALERTS" >> $GITHUB_ENV
+
+      - name: Block Release on Critical Issues
+        if: env.high_issues > 0 || env.high_alerts > 0
+        run: |
+          echo "Обнаружены критические уязвимости. Релиз заблокирован."
           exit 1
 
       - name: Create Security Issue
@@ -265,15 +259,16 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const sast = fs.readFileSync('sast-reports/sast-report.md').toString().slice(0, 10000);
-            const dast = fs.readFileSync('dast-reports/dast-report.md').toString().slice(0, 10000);
-            const security = fs.readFileSync('security-config-reports/security-config-report.md').toString().slice(0, 10000);
+            // Ограничиваем каждый раздел до 10KB для обхода лимита GitHub
+            const sast = fs.readFileSync('artifacts/sast-reports/sast-report.md').toString().slice(0, 10000);
+            const dast = fs.readFileSync('artifacts/dast-reports/dast-report.md').toString().slice(0, 10000);
+            const security = fs.readFileSync('artifacts/security-config-reports/security-config-report.md').toString().slice(0, 10000);
             
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: "Security Summary",
-              body: `# Security Report\n\n## SAST\n${sast}\n\n## DAST\n${dast}\n\n## Config Checks\n${security}\n\n[Full reports](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
+              title: "Security Report",
+              body: `# Security Summary\n\n## SAST\n${sast}\n\n## DAST\n${dast}\n\n## Config Checks\n${security}\n\n[Full reports](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)`,
               labels: ["security"],
               assignees: [context.actor]
             });
