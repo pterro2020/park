@@ -3,7 +3,7 @@ beautifulsoup4==4.12.2
 certifi==2024.7.4
 charset-normalizer==3.1.0
 Django==4.2.20
-gunicorn==22.0.0
+gunicorn==23.0.0
 django-bootstrap5==23.3
 Pillow==11.1.0
 idna==3.7
