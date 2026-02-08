@@ -1,5 +1,5 @@
 # Базовый образ Python
-FROM python:3.9-slim
+FROM python:3.14.3-slim
 
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
